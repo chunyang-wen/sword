@@ -1634,6 +1634,45 @@ input[type="checkbox"]:focus-visible {
   gap: 20px;
 }
 
+.cron-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
+  row-gap: 24px;
+  align-items: stretch;
+}
+
+.cron-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cron-controls {
+  margin-bottom: 0;
+  flex-grow: 1;
+}
+
+.cron-controls .primary-action {
+  margin-top: auto;
+}
+
+.cron-expression-field {
+  gap: 10px;
+}
+
+.cron-expression-card {
+  height: 100%;
+  grid-template-rows: auto 1fr;
+}
+
+.cron-expression-input {
+  min-height: 278px;
+  height: 100%;
+  align-self: stretch;
+  resize: vertical;
+}
+
 .stacked-tool .output-block + .output-block,
 .stacked-tool .field + .output-block {
   margin-top: 20px;

@@ -366,12 +366,12 @@ function Stepper({ label, value, onChange, min = 1, max = 100 }: StepperProps) {
   );
 }
 
-function Output({ result }: { result: Result<string> }) {
+function Output({ result, label = "Output" }: { result: Result<string>; label?: string }) {
   const value = result.ok ? result.value : "";
   return (
     <div className="output-block">
       <div className="output-bar">
-        <span>Output</span>
+        <span>{label}</span>
         <CopyButton value={value} />
       </div>
       {result.ok ? <pre>{value}</pre> : <div className="error">{result.error}</div>}
@@ -585,70 +585,76 @@ function CronTool() {
     : generated;
 
   return (
-    <div className="stacked-tool">
-      <div className="tool-grid two">
-        <div>
-          <div className="controls-panel">
-            <div className="options-row">
+    <div className="cron-layout">
+      <div className="cron-cell">
+        <div className="field-header">
+          <span>Build expression</span>
+        </div>
+        <div className="controls-panel cron-controls">
+          <div className="options-row">
+            <label className="field">
+              <span>Schedule</span>
+              <Select
+                className="ant-control"
+                size="large"
+                value={frequency}
+                onChange={setFrequency}
+                options={cronFrequencyOptions}
+              />
+            </label>
+            {frequency === "minutes" && (
               <label className="field">
-                <span>Schedule</span>
+                <span>Interval</span>
+                <input type="number" min={1} max={59} value={interval} onChange={(event) => setInterval(Number(event.target.value))} />
+              </label>
+            )}
+            {frequency !== "minutes" && (
+              <label className="field">
+                <span>Minute</span>
+                <input type="number" min={0} max={59} value={minute} onChange={(event) => setMinute(Number(event.target.value))} />
+              </label>
+            )}
+            {["daily", "weekly", "monthly"].includes(frequency) && (
+              <label className="field">
+                <span>Hour</span>
+                <input type="number" min={0} max={23} value={hour} onChange={(event) => setHour(Number(event.target.value))} />
+              </label>
+            )}
+            {frequency === "weekly" && (
+              <label className="field">
+                <span>Weekday</span>
                 <Select
                   className="ant-control"
                   size="large"
-                  value={frequency}
-                  onChange={setFrequency}
-                  options={cronFrequencyOptions}
+                  value={dayOfWeek}
+                  onChange={setDayOfWeek}
+                  options={weekdayOptions}
                 />
               </label>
-              {frequency === "minutes" && (
-                <label className="field">
-                  <span>Interval</span>
-                  <input type="number" min={1} max={59} value={interval} onChange={(event) => setInterval(Number(event.target.value))} />
-                </label>
-              )}
-              {frequency !== "minutes" && (
-                <label className="field">
-                  <span>Minute</span>
-                  <input type="number" min={0} max={59} value={minute} onChange={(event) => setMinute(Number(event.target.value))} />
-                </label>
-              )}
-              {["daily", "weekly", "monthly"].includes(frequency) && (
-                <label className="field">
-                  <span>Hour</span>
-                  <input type="number" min={0} max={23} value={hour} onChange={(event) => setHour(Number(event.target.value))} />
-                </label>
-              )}
-              {frequency === "weekly" && (
-                <label className="field">
-                  <span>Weekday</span>
-                  <Select
-                    className="ant-control"
-                    size="large"
-                    value={dayOfWeek}
-                    onChange={setDayOfWeek}
-                    options={weekdayOptions}
-                  />
-                </label>
-              )}
-              {frequency === "monthly" && (
-                <label className="field">
-                  <span>Day</span>
-                  <input type="number" min={1} max={31} value={dayOfMonth} onChange={(event) => setDayOfMonth(Number(event.target.value))} />
-                </label>
-              )}
-            </div>
-            <button className="primary-action flush" disabled={!generated.ok} onClick={() => generated.ok && setCronInput(generated.value)}>Use expression</button>
+            )}
+            {frequency === "monthly" && (
+              <label className="field">
+                <span>Day</span>
+                <input type="number" min={1} max={31} value={dayOfMonth} onChange={(event) => setDayOfMonth(Number(event.target.value))} />
+              </label>
+            )}
           </div>
-          <div className="compact-output">
-            <Output result={generatedOutput} />
-          </div>
+          <button className="primary-action flush" disabled={!generated.ok} onClick={() => generated.ok && setCronInput(generated.value)}>Use expression</button>
         </div>
-        <div>
-          <TextArea label="Cron expression" value={cronInput} setValue={setCronInput} />
-          <div className="compact-output">
-            <Output result={parseResult} />
+      </div>
+      <div className="cron-cell">
+        <label className="field cron-expression-field cron-expression-card">
+          <div className="field-header">
+            <span>Parse expression</span>
           </div>
-        </div>
+          <textarea className="cron-expression-input" value={cronInput} onChange={(event) => setCronInput(event.target.value)} spellCheck={false} />
+        </label>
+      </div>
+      <div className="cron-cell">
+        <Output label="Generated expression" result={generatedOutput} />
+      </div>
+      <div className="cron-cell">
+        <Output label="Description" result={parseResult} />
       </div>
     </div>
   );
