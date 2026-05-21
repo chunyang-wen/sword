@@ -476,7 +476,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .segmented.wide.qr-mode-toggle {
-  width: min(100%, 440px);
+  width: min(100%, 300px);
 }
 
 .options-panel .segmented,
@@ -531,6 +531,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.025);
   color: var(--muted);
+  justify-content: center;
+  text-align: center;
 }
 
 :root[data-theme="light"] .options-panel .segmented button,
@@ -1451,6 +1453,10 @@ input[type="checkbox"]:focus-visible {
   flex-basis: 360px;
 }
 
+.controls-panel.horizontal .field.segmented-field {
+  flex: 0 1 460px;
+}
+
 :is(.controls-panel, .options-panel, .options-container) .ant-control {
   width: 100%;
 }
@@ -1479,6 +1485,10 @@ input[type="checkbox"]:focus-visible {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented.compact-segmented {
+  max-width: 460px;
+}
+
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input:hover,
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker:hover,
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select:hover,
@@ -1505,15 +1515,28 @@ input[type="checkbox"]:focus-visible {
   color: var(--text);
 }
 
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 38px;
+  text-align: center;
+}
+
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-group {
   gap: 6px;
 }
 
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: 40px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.025);
+  min-width: 86px;
 }
 
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item:hover:not(.ant-segmented-item-selected) {

@@ -58,10 +58,10 @@ type Theme = "system" | "light" | "dark";
 type ResolvedTheme = "light" | "dark";
 
 const baseOptions = [
-  { value: "10", label: "Decimal" },
-  { value: "16", label: "Hexadecimal" },
-  { value: "8", label: "Octal" },
-  { value: "2", label: "Binary" },
+  { value: "10", label: "Dec" },
+  { value: "16", label: "Hex" },
+  { value: "8", label: "Oct" },
+  { value: "2", label: "Bin" },
 ];
 
 const cronFrequencyOptions: Array<{ value: CronFrequency; label: string }> = [
@@ -91,9 +91,9 @@ const unitCategoryOptions: Array<{ value: UnitCategory; label: string }> = [
 ];
 
 const casingOptions = [
-  { value: "none", label: "Keep case" },
-  { value: "upper", label: "Uppercase" },
-  { value: "lower", label: "Lowercase" },
+  { value: "none", label: "Keep" },
+  { value: "upper", label: "Upper" },
+  { value: "lower", label: "Lower" },
 ];
 
 const dnsRecordOptions = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"].map((record) => ({ value: record, label: record }));
@@ -464,10 +464,10 @@ function NumberBaseTool() {
     <StructuredTool
       controls={
         <div className="controls-panel horizontal">
-          <label className="field">
+          <label className="field segmented-field">
             <span>Base</span>
             <Segmented
-              className="ant-control"
+              className="ant-control compact-segmented"
               block
               size="large"
               value={base}
@@ -719,24 +719,24 @@ function TextToolkitTool() {
         <div className="options-row">
           <div className="option-item">
             <span className="option-label">Source Delimiter</span>
-            <div className="segmented">
-              {["comma", "space", "newline"].map((name) => (
-                <button key={`s-${name}`} className={source === name ? "selected" : ""} onClick={() => setSource(name)}>from {name}</button>
+              <div className="segmented">
+                {["comma", "space", "newline"].map((name) => (
+                <button key={`s-${name}`} className={source === name ? "selected" : ""} onClick={() => setSource(name)}>{name}</button>
               ))}
             </div>
           </div>
           <div className="option-item">
             <span className="option-label">Target Delimiter</span>
-            <div className="segmented">
-              {["comma", "space", "newline"].map((name) => (
-                <button key={`t-${name}`} className={target === name ? "selected" : ""} onClick={() => setTarget(name)}>to {name}</button>
+              <div className="segmented">
+                {["comma", "space", "newline"].map((name) => (
+                <button key={`t-${name}`} className={target === name ? "selected" : ""} onClick={() => setTarget(name)}>{name}</button>
               ))}
             </div>
           </div>
           <div className="option-item">
             <span className="option-label">Casing</span>
             <Segmented
-              className="ant-control"
+              className="ant-control compact-segmented"
               block
               size="large"
               value={casing}
@@ -969,8 +969,8 @@ function QrTool() {
   return (
     <>
       <div className="segmented wide qr-mode-toggle">
-        <button className={mode === "encode" ? "selected" : ""} onClick={() => setMode("encode")}>Generate QR</button>
-        <button className={mode === "decode" ? "selected" : ""} onClick={() => setMode("decode")}>Scan QR</button>
+        <button className={mode === "encode" ? "selected" : ""} onClick={() => setMode("encode")}>Generate</button>
+        <button className={mode === "decode" ? "selected" : ""} onClick={() => setMode("decode")}>Scan</button>
       </div>
       
       {mode === "encode" ? (
