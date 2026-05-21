@@ -5,7 +5,9 @@ import {
   Clipboard,
   Download,
   Github,
+  Minus,
   Moon,
+  Plus,
   RotateCcw,
   Search,
   Sun,
@@ -226,6 +228,69 @@ function TextArea({ label, value, setValue, placeholder }: { label: string; valu
   );
 }
 
+interface StepperProps {
+  label: string;
+  value: number;
+  onChange: (val: number) => void;
+  min?: number;
+  max?: number;
+}
+
+function Stepper({ label, value, onChange, min = 1, max = 100 }: StepperProps) {
+  const handleDecrement = () => {
+    if (value > min) {
+      onChange(value - 1);
+    }
+  };
+
+  const handleIncrement = () => {
+    if (value < max) {
+      onChange(value + 1);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = Number(e.target.value);
+    if (!isNaN(val)) {
+      onChange(Math.max(min, Math.min(max, val)));
+    }
+  };
+
+  return (
+    <div className="field">
+      <span className="stepper-label">{label}</span>
+      <div className="stepper-control">
+        <button 
+          className="stepper-btn" 
+          onClick={handleDecrement} 
+          disabled={value <= min}
+          type="button"
+          title="Decrease"
+        >
+          <Minus size={14} />
+        </button>
+        <input 
+          type="text" 
+          className="stepper-input" 
+          value={value} 
+          onChange={handleChange}
+          inputMode="numeric"
+          pattern="[0-9]*"
+        />
+        <button 
+          className="stepper-btn" 
+          onClick={handleIncrement} 
+          disabled={value >= max}
+          type="button"
+          title="Increase"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Output({ result }: { result: Result<string> }) {
   const value = result.ok ? result.value : "";
   return (
@@ -271,14 +336,44 @@ function DualTransform({ titleA, titleB, sample, toB, toA }: { titleA: string; t
 }
 
 function EncodeDecodeTool({ encode, decode, sample }: { encode: (input: string) => string; decode: (input: string) => Result<string>; sample: string }) {
-  const [input, setInput] = useState(sample);
   const [mode, setMode] = useState<"encode" | "decode">("encode");
-  const result = mode === "encode" ? { ok: true as const, value: encode(input) } : decode(input);
+  const [encodeInput, setEncodeInput] = useState(sample);
+  const [decodeInput, setDecodeInput] = useState(() => encode(sample));
+
+  const input = mode === "encode" ? encodeInput : decodeInput;
+  const setInput = (val: string) => {
+    if (mode === "encode") {
+      setEncodeInput(val);
+    } else {
+      setDecodeInput(val);
+    }
+  };
+
+  const result = useMemo(() => {
+    return mode === "encode"
+      ? { ok: true as const, value: encode(encodeInput) }
+      : decode(decodeInput);
+  }, [mode, encodeInput, decodeInput, encode, decode]);
+
+  const handleModeChange = (newMode: "encode" | "decode") => {
+    if (newMode === "decode") {
+      // When switching to decode, seed it with the encoded output of the current encode input
+      setDecodeInput(encode(encodeInput));
+    } else {
+      // When switching to encode, seed it with the decoded output of the current decode input (if valid)
+      const decoded = decode(decodeInput);
+      if (decoded.ok) {
+        setEncodeInput(decoded.value);
+      }
+    }
+    setMode(newMode);
+  };
+
   return (
     <>
       <div className="segmented wide">
-        <button className={mode === "encode" ? "selected" : ""} onClick={() => setMode("encode")}>Encode</button>
-        <button className={mode === "decode" ? "selected" : ""} onClick={() => setMode("decode")}>Decode</button>
+        <button className={mode === "encode" ? "selected" : ""} onClick={() => handleModeChange("encode")}>Encode</button>
+        <button className={mode === "decode" ? "selected" : ""} onClick={() => handleModeChange("decode")}>Decode</button>
       </div>
       <div className="tool-grid two">
         <TextArea label="Input" value={input} setValue={setInput} />
@@ -479,10 +574,7 @@ function UuidTool() {
           <span>Options</span>
         </div>
         <div className="options-container">
-          <label className="field">
-            <span>Count</span>
-            <input type="number" min={1} max={100} value={count} onChange={(e) => setCount(Number(e.target.value))} />
-          </label>
+          <Stepper label="Count" value={count} onChange={setCount} min={1} max={100} />
           <label className="checkbox-field">
             <input type="checkbox" checked={upper} onChange={(e) => setUpper(e.target.checked)} />
             <span>Uppercase</span>
@@ -508,10 +600,7 @@ function PasswordTool() {
           <span>Options</span>
         </div>
         <div className="options-container">
-          <label className="field">
-            <span>Length</span>
-            <input type="number" min={4} max={256} value={length} onChange={(e) => setLength(Number(e.target.value))} />
-          </label>
+          <Stepper label="Length" value={length} onChange={setLength} min={4} max={256} />
           <div className="checkbox-group">
             {(Object.keys(sets) as Array<keyof typeof sets>).map((key) => (
               <label key={key} className="checkbox-field">
@@ -536,10 +625,7 @@ function LoremTool() {
           <span>Options</span>
         </div>
         <div className="options-container">
-          <label className="field">
-            <span>Paragraphs</span>
-            <input type="number" min={1} max={20} value={count} onChange={(e) => setCount(Number(e.target.value))} />
-          </label>
+          <Stepper label="Paragraphs" value={count} onChange={setCount} min={1} max={20} />
         </div>
       </div>
       <Output result={{ ok: true, value: loremIpsum(count) }} />
