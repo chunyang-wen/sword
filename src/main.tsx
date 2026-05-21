@@ -98,6 +98,8 @@ const casingOptions = [
 
 const dnsRecordOptions = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"].map((record) => ({ value: record, label: record }));
 
+const jwtSample = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkRldiBVdGlscyIsImlhdCI6MTUxNjIzOTAyMn0.";
+
 function useHashRoute() {
   const [hash, setHash] = useState(window.location.hash || "#/");
   useEffect(() => {
@@ -263,7 +265,7 @@ function ToolSwitch({ id }: { id: string }) {
     case "qr-coder": return <QrTool />;
     case "url-coder": return <EncodeDecodeTool encode={urlEncode} decode={urlDecode} sample="https://example.com/search?q=dev utils" />;
     case "base64-coder": return <EncodeDecodeTool encode={base64Encode} decode={base64Decode} sample="Hello, DevUtils" />;
-    case "jwt-decoder": return <SingleTransform sample="" transform={decodeJwt} />;
+    case "jwt-decoder": return <SingleTransform sample={jwtSample} transform={decodeJwt} />;
     case "certificate-decoder": return <SingleTransform sample="" transform={certificateInfo} />;
     case "hash-generator": return <HashTool />;
     case "uuid-generator": return <UuidTool />;
