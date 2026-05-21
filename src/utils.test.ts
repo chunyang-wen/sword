@@ -10,6 +10,7 @@ import {
   diffText,
   formatJson,
   formatXml,
+  generateCronExpression,
   jsonToYaml,
   parseUrl,
   password,
@@ -87,6 +88,12 @@ describe("formatters and encoders", () => {
   it("describes cron", () => {
     const result = describeCron("*/5 * * * *");
     expect(result.ok && result.value).toContain("Every 5 minutes");
+  });
+
+  it("generates valid cron expressions", () => {
+    const result = generateCronExpression({ frequency: "weekly", interval: 15, minute: 30, hour: 9, dayOfMonth: 1, dayOfWeek: 1 });
+    expect(result).toEqual({ ok: true, value: "30 9 * * 1" });
+    expect(result.ok && describeCron(result.value).ok).toBe(true);
   });
 
   it("encodes and decodes URL components", () => {

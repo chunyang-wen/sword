@@ -475,6 +475,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   width: max-content;
 }
 
+.segmented.wide.qr-mode-toggle {
+  width: min(100%, 440px);
+}
+
+.qr-mode-toggle button {
+  min-width: 0;
+  white-space: nowrap;
+}
+
 .segmented button,
 .icon-button,
 .controls button {
@@ -795,7 +804,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   display: grid;
   gap: 10px;
 }
-.field span {
+.field > span {
   color: var(--muted);
   font-family: 'Outfit', sans-serif;
   font-size: 0.9rem;
@@ -963,6 +972,10 @@ textarea:focus {
 
 .controls input:not([type="checkbox"]),
 .controls select,
+.controls-panel input:not([type="checkbox"]),
+.controls-panel select,
+.options-panel input:not([type="checkbox"]),
+.options-panel select,
 .wide-input {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -978,6 +991,10 @@ textarea:focus {
 
 :root[data-theme="light"] .controls input:not([type="checkbox"]),
 :root[data-theme="light"] .controls select,
+:root[data-theme="light"] .controls-panel input:not([type="checkbox"]),
+:root[data-theme="light"] .controls-panel select,
+:root[data-theme="light"] .options-panel input:not([type="checkbox"]),
+:root[data-theme="light"] .options-panel select,
 :root[data-theme="light"] .wide-input {
   background: rgba(255, 255, 255, 0.7);
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -986,6 +1003,10 @@ textarea:focus {
 
 .controls input:not([type="checkbox"]):hover,
 .controls select:hover,
+.controls-panel input:not([type="checkbox"]):hover,
+.controls-panel select:hover,
+.options-panel input:not([type="checkbox"]):hover,
+.options-panel select:hover,
 .wide-input:hover {
   border-color: rgba(255, 255, 255, 0.16);
   background-color: rgba(21, 26, 30, 0.65);
@@ -993,6 +1014,10 @@ textarea:focus {
 
 :root[data-theme="light"] .controls input:not([type="checkbox"]):hover,
 :root[data-theme="light"] .controls select:hover,
+:root[data-theme="light"] .controls-panel input:not([type="checkbox"]):hover,
+:root[data-theme="light"] .controls-panel select:hover,
+:root[data-theme="light"] .options-panel input:not([type="checkbox"]):hover,
+:root[data-theme="light"] .options-panel select:hover,
 :root[data-theme="light"] .wide-input:hover {
   border-color: rgba(0, 0, 0, 0.15);
   background-color: rgba(255, 255, 255, 0.85);
@@ -1000,6 +1025,10 @@ textarea:focus {
 
 .controls input:not([type="checkbox"]):focus,
 .controls select:focus,
+.controls-panel input:not([type="checkbox"]):focus,
+.controls-panel select:focus,
+.options-panel input:not([type="checkbox"]):focus,
+.options-panel select:focus,
 .wide-input:focus {
   outline: 0;
   border-color: var(--primary);
@@ -1009,13 +1038,19 @@ textarea:focus {
 
 :root[data-theme="light"] .controls input:not([type="checkbox"]):focus,
 :root[data-theme="light"] .controls select:focus,
+:root[data-theme="light"] .controls-panel input:not([type="checkbox"]):focus,
+:root[data-theme="light"] .controls-panel select:focus,
+:root[data-theme="light"] .options-panel input:not([type="checkbox"]):focus,
+:root[data-theme="light"] .options-panel select:focus,
 :root[data-theme="light"] .wide-input:focus {
   background-color: #ffffff;
   box-shadow: 0 0 0 3px rgba(0, 97, 164, 0.12), 0 0 15px rgba(0, 97, 164, 0.05);
 }
 
 /* Custom dropdown chevron arrow micro-interaction */
-.controls select {
+.controls select,
+.controls-panel select,
+.options-panel select {
   appearance: none;
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
@@ -1026,15 +1061,21 @@ textarea:focus {
   cursor: pointer;
 }
 
-:root[data-theme="light"] .controls select {
+:root[data-theme="light"] .controls select,
+:root[data-theme="light"] .controls-panel select,
+:root[data-theme="light"] .options-panel select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23475569' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
 }
 
-.controls select:focus {
+.controls select:focus,
+.controls-panel select:focus,
+.options-panel select:focus {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239eacff' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
 }
 
-:root[data-theme="light"] .controls select:focus {
+:root[data-theme="light"] .controls select:focus,
+:root[data-theme="light"] .controls-panel select:focus,
+:root[data-theme="light"] .options-panel select:focus {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%230061a4' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
 }
 
@@ -1349,7 +1390,140 @@ input[type="checkbox"]:focus-visible {
 
 .options-panel.horizontal-wrap .field,
 .controls-panel.horizontal .field {
-  flex: 1 minmax(200px, 1fr);
+  flex: 1 1 200px;
+}
+
+.controls-panel .field,
+.options-panel .field {
+  min-width: 0;
+}
+
+.controls-panel .wide-field {
+  flex-basis: 360px;
+}
+
+:is(.controls-panel, .options-panel, .options-container) .ant-control {
+  width: 100%;
+}
+
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented {
+  min-height: 48px;
+}
+
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented {
+  background: rgba(21, 26, 30, 0.55);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input:hover,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker:hover,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select:hover,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented:hover {
+  background: rgba(21, 26, 30, 0.65);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input:focus,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input-focused,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker-focused,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select-focused {
+  background: rgba(16, 20, 24, 0.75);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(158, 172, 255, 0.15), 0 0 20px rgba(158, 172, 255, 0.1);
+}
+
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker input,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select .ant-select-content,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item-label,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker .ant-picker-suffix,
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select .ant-select-arrow {
+  color: var(--text);
+}
+
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item {
+  border-radius: 8px;
+}
+
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item-selected {
+  background: var(--primary-tonal);
+}
+
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select input.ant-select-input {
+  width: 1px !important;
+  min-height: 0;
+  padding: 0 !important;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: transparent;
+  caret-color: transparent;
+  opacity: 0;
+}
+
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input:hover,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker:hover,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select:hover,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input:focus,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input-focused,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker-focused,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select-focused {
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(0, 97, 164, 0.12), 0 0 15px rgba(0, 97, 164, 0.05);
+}
+
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker input,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-input,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select .ant-select-content,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item-label,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-picker .ant-picker-suffix,
+:root[data-theme="light"] :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select .ant-select-arrow {
+  color: var(--text);
+}
+
+.primary-action.flush {
+  margin-top: 0;
+}
+
+.stacked-tool {
+  display: grid;
+  gap: 20px;
+}
+
+.stacked-tool .output-block + .output-block,
+.stacked-tool .field + .output-block {
+  margin-top: 20px;
+}
+
+.compact-output {
+  margin-top: 20px;
+}
+
+.compact-output .output-block pre,
+.compact-output .error {
+  min-height: 160px;
 }
 
 /* Horizontal options row for segmented selectors */
@@ -1361,11 +1535,15 @@ input[type="checkbox"]:focus-visible {
   width: 100%;
 }
 
+.options-row > .field {
+  flex: 1 1 160px;
+}
+
 .option-item {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  flex: 1 minmax(240px, 1fr);
+  flex: 1 1 240px;
 }
 
 .option-label {
@@ -1761,5 +1939,3 @@ input[type="checkbox"]:focus-visible {
   outline: 0;
   min-width: 40px;
 }
-
-

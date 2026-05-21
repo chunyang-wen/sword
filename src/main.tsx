@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { ConfigProvider, DatePicker, Input, Segmented, Select, TimePicker, theme as antdTheme } from "antd";
+import dayjs from "dayjs";
 import {
   Check,
   Clipboard,
@@ -15,6 +17,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import jsQR from "jsqr";
+import "antd/dist/reset.css";
 import "./styles.css";
 import { categories, toolById, tools, type ToolCategoryId, type ToolDefinition } from "./tools";
 import {
@@ -31,6 +34,7 @@ import {
   dnsLookup,
   formatJson,
   formatXml,
+  generateCronExpression,
   httpStatuses,
   jsonToYaml,
   loremIpsum,
@@ -46,10 +50,53 @@ import {
   uuidList,
   yamlToJson,
   type UnitCategory,
+  type CronFrequency,
   type Result,
 } from "./utils";
 
 type Theme = "system" | "light" | "dark";
+type ResolvedTheme = "light" | "dark";
+
+const baseOptions = [
+  { value: "10", label: "Decimal" },
+  { value: "16", label: "Hexadecimal" },
+  { value: "8", label: "Octal" },
+  { value: "2", label: "Binary" },
+];
+
+const cronFrequencyOptions: Array<{ value: CronFrequency; label: string }> = [
+  { value: "minutes", label: "Every N minutes" },
+  { value: "hourly", label: "Hourly" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+];
+
+const weekdayOptions = [
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" },
+];
+
+const unitCategoryOptions: Array<{ value: UnitCategory; label: string }> = [
+  { value: "length", label: "length" },
+  { value: "mass", label: "mass" },
+  { value: "temperature", label: "temperature" },
+  { value: "area", label: "area" },
+  { value: "volume", label: "volume" },
+];
+
+const casingOptions = [
+  { value: "none", label: "Keep case" },
+  { value: "upper", label: "Uppercase" },
+  { value: "lower", label: "Lowercase" },
+];
+
+const dnsRecordOptions = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"].map((record) => ({ value: record, label: record }));
 
 function useHashRoute() {
   const [hash, setHash] = useState(window.location.hash || "#/");
@@ -61,10 +108,25 @@ function useHashRoute() {
   return hash;
 }
 
+function usePreferredDark() {
+  const [prefersDark, setPrefersDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (event: MediaQueryListEvent) => setPrefersDark(event.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  return prefersDark;
+}
+
 function App() {
   const hash = useHashRoute();
   const [query, setQuery] = useState("");
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("theme") as Theme) || "system");
+  const prefersDark = usePreferredDark();
+  const resolvedTheme: ResolvedTheme = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
   const selectedId = hash.match(/^#\/tools\/([^/]+)/)?.[1] ?? "home";
   const selectedTool = selectedId === "home" ? undefined : toolById.get(selectedId);
 
@@ -84,7 +146,17 @@ function App() {
   }, [query]);
 
   return (
-    <div className="app-shell">
+    <ConfigProvider
+      theme={{
+        algorithm: resolvedTheme === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+        token: {
+          colorPrimary: resolvedTheme === "dark" ? "#9eacff" : "#0061a4",
+          borderRadius: 10,
+          fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+        },
+      }}
+    >
+      <div className="app-shell">
       <div className="ambient-glow bg-glow-1"></div>
       <div className="ambient-glow bg-glow-2"></div>
       <aside className="sidebar">
@@ -121,7 +193,8 @@ function App() {
       <main className="workspace">
         {selectedTool ? <ToolPage tool={selectedTool} /> : <HomePage />}
       </main>
-    </div>
+      </div>
+    </ConfigProvider>
   );
 }
 
@@ -186,7 +259,7 @@ function ToolSwitch({ id }: { id: string }) {
     case "json-formatter": return <SingleTransform sample='{"hello":"world","items":[1,2]}' transform={formatJson} />;
     case "sql-formatter": return <SingleTransform sample="select id, name from users where active = true order by created_at desc" transform={safeSql} />;
     case "xml-formatter": return <SingleTransform sample={'<root><item id="1">DevUtils</item></root>'} transform={formatXml} />;
-    case "cron-job-parser": return <SingleTransform sample="*/15 9-17 * * 1-5" transform={describeCron} />;
+    case "cron-job-parser": return <CronTool />;
     case "qr-coder": return <QrTool />;
     case "url-coder": return <EncodeDecodeTool encode={urlEncode} decode={urlDecode} sample="https://example.com/search?q=dev utils" />;
     case "base64-coder": return <EncodeDecodeTool encode={base64Encode} decode={base64Decode} sample="Hello, DevUtils" />;
@@ -393,12 +466,14 @@ function NumberBaseTool() {
         <div className="controls-panel horizontal">
           <label className="field">
             <span>Base</span>
-            <select value={base} onChange={(e) => setBase(e.target.value)}>
-              <option value="10">Decimal</option>
-              <option value="16">Hexadecimal</option>
-              <option value="8">Octal</option>
-              <option value="2">Binary</option>
-            </select>
+            <Segmented
+              className="ant-control"
+              block
+              size="large"
+              value={base}
+              onChange={(value) => setBase(String(value))}
+              options={baseOptions}
+            />
           </label>
         </div>
       }
@@ -422,9 +497,159 @@ function StructuredTool({ controls, input, setInput, result }: { controls?: Reac
 }
 
 function DateTool() {
-  const [input, setInput] = useState("");
-  const result = dateFields(input);
-  return <StructuredTool input={input} setInput={setInput} result={result.ok ? { ok: true, value: JSON.stringify(result.value, null, 2) } : result} />;
+  const now = useMemo(() => new Date(), []);
+  const [date, setDate] = useState(() => formatDateInput(now));
+  const [time, setTime] = useState(() => formatTimeInput(now));
+  const [customInput, setCustomInput] = useState("");
+  const dateValue = useMemo(() => dayjs(date), [date]);
+  const timeValue = useMemo(() => dayjs(`2000-01-01T${time || "00:00"}`), [time]);
+  const selectedInput = customInput.trim() || `${date}T${time || "00:00"}`;
+  const result = dateFields(selectedInput);
+  return (
+    <div>
+      <div className="controls-panel horizontal">
+        <label className="field">
+          <span>Date</span>
+          <DatePicker
+            className="ant-control"
+            size="large"
+            value={dateValue}
+            format="YYYY-MM-DD"
+            allowClear={false}
+            onChange={(value) => {
+              if (value) setDate(value.format("YYYY-MM-DD"));
+            }}
+          />
+        </label>
+        <label className="field">
+          <span>Time</span>
+          <TimePicker
+            className="ant-control"
+            size="large"
+            value={timeValue}
+            format="HH:mm"
+            allowClear={false}
+            onChange={(value) => {
+              if (value) setTime(value.format("HH:mm"));
+            }}
+          />
+        </label>
+        <label className="field wide-field">
+          <span>Timestamp or date string</span>
+          <Input
+            className="ant-control"
+            size="large"
+            value={customInput}
+            onChange={(event) => setCustomInput(event.target.value)}
+            placeholder="Optional: 1716220800, 1716220800000, ISO date"
+          />
+        </label>
+      </div>
+      <Output result={result.ok ? { ok: true, value: JSON.stringify(result.value, null, 2) } : result} />
+    </div>
+  );
+}
+
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatTimeInput(date: Date) {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function CronTool() {
+  const [cronInput, setCronInput] = useState("*/15 9-17 * * 1-5");
+  const [frequency, setFrequency] = useState<CronFrequency>("daily");
+  const [interval, setInterval] = useState(15);
+  const [minute, setMinute] = useState(0);
+  const [hour, setHour] = useState(9);
+  const [dayOfMonth, setDayOfMonth] = useState(1);
+  const [dayOfWeek, setDayOfWeek] = useState(1);
+
+  const generated = useMemo(() => generateCronExpression({ frequency, interval, minute, hour, dayOfMonth, dayOfWeek }), [frequency, interval, minute, hour, dayOfMonth, dayOfWeek]);
+  const parseResult = useMemo(() => describeCron(cronInput), [cronInput]);
+  const generatedDescription = generated.ok ? describeCron(generated.value) : generated;
+  const generatedOutput = generated.ok
+    ? {
+        ok: true as const,
+        value: `${generated.value}\n\n${generatedDescription.ok ? generatedDescription.value : generatedDescription.error}`,
+      }
+    : generated;
+
+  return (
+    <div className="stacked-tool">
+      <div className="tool-grid two">
+        <div>
+          <div className="controls-panel">
+            <div className="options-row">
+              <label className="field">
+                <span>Schedule</span>
+                <Select
+                  className="ant-control"
+                  size="large"
+                  value={frequency}
+                  onChange={setFrequency}
+                  options={cronFrequencyOptions}
+                />
+              </label>
+              {frequency === "minutes" && (
+                <label className="field">
+                  <span>Interval</span>
+                  <input type="number" min={1} max={59} value={interval} onChange={(event) => setInterval(Number(event.target.value))} />
+                </label>
+              )}
+              {frequency !== "minutes" && (
+                <label className="field">
+                  <span>Minute</span>
+                  <input type="number" min={0} max={59} value={minute} onChange={(event) => setMinute(Number(event.target.value))} />
+                </label>
+              )}
+              {["daily", "weekly", "monthly"].includes(frequency) && (
+                <label className="field">
+                  <span>Hour</span>
+                  <input type="number" min={0} max={23} value={hour} onChange={(event) => setHour(Number(event.target.value))} />
+                </label>
+              )}
+              {frequency === "weekly" && (
+                <label className="field">
+                  <span>Weekday</span>
+                  <Select
+                    className="ant-control"
+                    size="large"
+                    value={dayOfWeek}
+                    onChange={setDayOfWeek}
+                    options={weekdayOptions}
+                  />
+                </label>
+              )}
+              {frequency === "monthly" && (
+                <label className="field">
+                  <span>Day</span>
+                  <input type="number" min={1} max={31} value={dayOfMonth} onChange={(event) => setDayOfMonth(Number(event.target.value))} />
+                </label>
+              )}
+            </div>
+            <button className="primary-action flush" disabled={!generated.ok} onClick={() => generated.ok && setCronInput(generated.value)}>Use expression</button>
+          </div>
+          <div className="compact-output">
+            <Output result={generatedOutput} />
+          </div>
+        </div>
+        <div>
+          <TextArea label="Cron expression" value={cronInput} setValue={setCronInput} />
+          <div className="compact-output">
+            <Output result={parseResult} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function UnitTool() {
@@ -440,21 +665,33 @@ function UnitTool() {
         <div className="controls-panel horizontal">
           <label className="field">
             <span>Category</span>
-            <select value={category} onChange={(e) => setCategory(e.target.value as UnitCategory)}>
-              {["length", "mass", "temperature", "area", "volume"].map((name) => <option key={name}>{name}</option>)}
-            </select>
+            <Select
+              className="ant-control"
+              size="large"
+              value={category}
+              onChange={setCategory}
+              options={unitCategoryOptions}
+            />
           </label>
           <label className="field">
             <span>From</span>
-            <select value={from} onChange={(e) => setFrom(e.target.value)}>
-              {names.map((name) => <option key={name}>{name}</option>)}
-            </select>
+            <Select
+              className="ant-control"
+              size="large"
+              value={from}
+              onChange={setFrom}
+              options={names.map((name) => ({ value: name, label: name }))}
+            />
           </label>
           <label className="field">
             <span>To</span>
-            <select value={to} onChange={(e) => setTo(e.target.value)}>
-              {names.map((name) => <option key={name}>{name}</option>)}
-            </select>
+            <Select
+              className="ant-control"
+              size="large"
+              value={to}
+              onChange={setTo}
+              options={names.map((name) => ({ value: name, label: name }))}
+            />
           </label>
         </div>
       }
@@ -498,11 +735,14 @@ function TextToolkitTool() {
           </div>
           <div className="option-item">
             <span className="option-label">Casing</span>
-            <select className="option-select" value={casing} onChange={(e) => setCasing(e.target.value)}>
-              <option value="none">Keep case</option>
-              <option value="upper">Uppercase</option>
-              <option value="lower">Lowercase</option>
-            </select>
+            <Segmented
+              className="ant-control"
+              block
+              size="large"
+              value={casing}
+              onChange={(value) => setCasing(String(value))}
+              options={casingOptions}
+            />
           </div>
         </div>
         <div className="checkbox-group">
@@ -593,8 +833,17 @@ function UuidTool() {
 
 function PasswordTool() {
   const [length, setLength] = useState(24);
+  const [count, setCount] = useState(1);
   const [sets, setSets] = useState({ lower: true, upper: true, digits: true, symbols: true });
-  const result = password(length, sets);
+  const result = useMemo<Result<string>>(() => {
+    const rows: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const next = password(length, sets);
+      if (!next.ok) return next;
+      rows.push(next.value);
+    }
+    return { ok: true, value: rows.join("\n") };
+  }, [count, length, sets]);
   return (
     <div className="tool-grid two">
       <div>
@@ -603,6 +852,7 @@ function PasswordTool() {
         </div>
         <div className="options-container">
           <Stepper label="Length" value={length} onChange={setLength} min={4} max={256} />
+          <Stepper label="Count" value={count} onChange={setCount} min={1} max={100} />
           <div className="checkbox-group">
             {(Object.keys(sets) as Array<keyof typeof sets>).map((key) => (
               <label key={key} className="checkbox-field">
@@ -670,9 +920,13 @@ function DnsTool() {
           </label>
           <label className="field">
             <span>Record Type</span>
-            <select value={type} onChange={(e) => setType(e.target.value)}>
-              {["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"].map((record) => <option key={record}>{record}</option>)}
-            </select>
+            <Select
+              className="ant-control"
+              size="large"
+              value={type}
+              onChange={setType}
+              options={dnsRecordOptions}
+            />
           </label>
           <button className="primary-action" onClick={() => dnsLookup(name, type).then(setResult).catch((error) => setResult({ ok: false, error: String(error) }))}>Lookup with Cloudflare DoH</button>
         </div>
@@ -714,7 +968,7 @@ function QrTool() {
 
   return (
     <>
-      <div className="segmented wide">
+      <div className="segmented wide qr-mode-toggle">
         <button className={mode === "encode" ? "selected" : ""} onClick={() => setMode("encode")}>Generate QR</button>
         <button className={mode === "decode" ? "selected" : ""} onClick={() => setMode("decode")}>Scan QR</button>
       </div>

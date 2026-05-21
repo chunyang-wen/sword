@@ -200,6 +200,53 @@ export function describeCron(input: string): Result<string> {
   }
 }
 
+export type CronFrequency = "minutes" | "hourly" | "daily" | "weekly" | "monthly";
+
+export interface CronScheduleConfig {
+  frequency: CronFrequency;
+  interval: number;
+  minute: number;
+  hour: number;
+  dayOfMonth: number;
+  dayOfWeek: number;
+}
+
+function inRange(value: number, min: number, max: number, label: string): Result<number> {
+  if (!Number.isInteger(value) || value < min || value > max) {
+    return { ok: false, error: `${label} must be between ${min} and ${max}.` };
+  }
+  return { ok: true, value };
+}
+
+export function generateCronExpression(config: CronScheduleConfig): Result<string> {
+  const minute = inRange(config.minute, 0, 59, "Minute");
+  if (!minute.ok) return minute;
+  const hour = inRange(config.hour, 0, 23, "Hour");
+  if (!hour.ok) return hour;
+  const dayOfMonth = inRange(config.dayOfMonth, 1, 31, "Day of month");
+  if (!dayOfMonth.ok) return dayOfMonth;
+  const dayOfWeek = inRange(config.dayOfWeek, 0, 6, "Day of week");
+  if (!dayOfWeek.ok) return dayOfWeek;
+
+  switch (config.frequency) {
+    case "minutes": {
+      const interval = inRange(config.interval, 1, 59, "Minute interval");
+      if (!interval.ok) return interval;
+      return { ok: true, value: `*/${interval.value} * * * *` };
+    }
+    case "hourly":
+      return { ok: true, value: `${minute.value} * * * *` };
+    case "daily":
+      return { ok: true, value: `${minute.value} ${hour.value} * * *` };
+    case "weekly":
+      return { ok: true, value: `${minute.value} ${hour.value} * * ${dayOfWeek.value}` };
+    case "monthly":
+      return { ok: true, value: `${minute.value} ${hour.value} ${dayOfMonth.value} * *` };
+    default:
+      return { ok: false, error: "Choose a valid schedule frequency." };
+  }
+}
+
 export function urlEncode(input: string): string {
   return encodeURIComponent(input);
 }
