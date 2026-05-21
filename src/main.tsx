@@ -811,7 +811,7 @@ function UuidTool() {
   const value = useMemo(() => uuidList(count, upper), [count, upper, nonce]);
   return (
     <div className="tool-grid two">
-      <div>
+      <div className="options-block">
         <div className="field-header">
           <span>Options</span>
         </div>
@@ -846,7 +846,7 @@ function PasswordTool() {
   }, [count, length, sets]);
   return (
     <div className="tool-grid two">
-      <div>
+      <div className="options-block">
         <div className="field-header">
           <span>Options</span>
         </div>
@@ -872,7 +872,7 @@ function LoremTool() {
   const [count, setCount] = useState(3);
   return (
     <div className="tool-grid two">
-      <div>
+      <div className="options-block">
         <div className="field-header">
           <span>Options</span>
         </div>
@@ -889,7 +889,7 @@ function AsyncButtonTool({ label, run }: { label: string; run: () => Promise<Res
   const [result, setResult] = useState<Result<string>>({ ok: true, value: "" });
   return (
     <div className="tool-grid two">
-      <div>
+      <div className="options-block">
         <div className="field-header">
           <span>Actions</span>
         </div>
@@ -909,7 +909,7 @@ function DnsTool() {
   const [result, setResult] = useState<Result<string>>({ ok: true, value: "" });
   return (
     <div className="tool-grid two">
-      <div>
+      <div className="options-block">
         <div className="field-header">
           <span>Configuration</span>
         </div>
