@@ -474,7 +474,8 @@ function TextToolkitTool() {
   const [casing, setCasing] = useState("none");
   const [sort, setSort] = useState(false);
   const [unique, setUnique] = useState(false);
-  const value = textToolkit(input, { source, target, trim, collapse, casing, sort, unique });
+  const [removeEmpty, setRemoveEmpty] = useState(true);
+  const value = textToolkit(input, { source, target, trim, collapse, casing, sort, unique, removeEmpty });
   return (
     <div>
       <div className="options-panel horizontal-wrap">
@@ -509,6 +510,7 @@ function TextToolkitTool() {
           <label className="checkbox-field"><input type="checkbox" checked={collapse} onChange={(e) => setCollapse(e.target.checked)} /> <span>Collapse punctuation</span></label>
           <label className="checkbox-field"><input type="checkbox" checked={sort} onChange={(e) => setSort(e.target.checked)} /> <span>Sort lines</span></label>
           <label className="checkbox-field"><input type="checkbox" checked={unique} onChange={(e) => setUnique(e.target.checked)} /> <span>Unique lines</span></label>
+          <label className="checkbox-field"><input type="checkbox" checked={removeEmpty} onChange={(e) => setRemoveEmpty(e.target.checked)} /> <span>Remove empty elements</span></label>
         </div>
       </div>
       <div className="tool-grid two">

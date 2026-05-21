@@ -62,7 +62,11 @@ describe("dates and units", () => {
 
 describe("text utilities", () => {
   it("converts delimiters and case", () => {
-    expect(textToolkit("a,b", { source: "comma", target: "newline", trim: false, collapse: false, casing: "upper", sort: false, unique: false })).toBe("A\nB");
+    expect(textToolkit("a,b", { source: "comma", target: "newline", trim: false, collapse: false, casing: "upper", sort: false, unique: false, removeEmpty: false })).toBe("A\nB");
+  });
+
+  it("trims punctuation and handles multiple delimiters and empty removal", () => {
+    expect(textToolkit("apple, banana,, cherry", { source: "comma", target: "newline", trim: true, collapse: false, casing: "none", sort: false, unique: false, removeEmpty: true })).toBe("apple\nbanana\ncherry");
   });
 
   it("inspects regex matches", () => {

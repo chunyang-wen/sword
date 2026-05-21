@@ -103,19 +103,53 @@ export function convertUnit(value: string, category: UnitCategory, from: string,
   return { ok: true, value: Number(converted.toPrecision(12)).toString() };
 }
 
-export function textToolkit(input: string, options: { source: string; target: string; trim: boolean; collapse: boolean; casing: string; sort: boolean; unique: boolean }): string {
+export function textToolkit(input: string, options: { source: string; target: string; trim: boolean; collapse: boolean; casing: string; sort: boolean; unique: boolean; removeEmpty: boolean }): string {
   const token = (name: string) => (name === "comma" ? "," : name === "space" ? " " : "\n");
-  let output = input.replace(new RegExp(escapeRegExp(token(options.source)) + "+", "g"), token(options.target));
-  if (options.trim) output = output.trim().replace(/^[\p{P}\s]+|[\p{P}\s]+$/gu, "");
-  if (options.collapse) output = output.replace(/([\p{P}])\1+/gu, "$1");
-  if (options.casing === "upper") output = output.toUpperCase();
-  if (options.casing === "lower") output = output.toLowerCase();
-  if (options.sort || options.unique) {
-    let lines = output.split(/\r?\n/);
-    if (options.unique) lines = [...new Set(lines)];
-    if (options.sort) lines = lines.sort((a, b) => a.localeCompare(b));
-    output = lines.join("\n");
+  
+  const sourceDelim = token(options.source);
+  const targetDelim = token(options.target);
+
+  let items: string[];
+  if (options.source === "newline") {
+    items = input.split(/\r?\n/);
+  } else {
+    items = input.split(sourceDelim);
   }
+
+  let processedItems = items.map((item) => {
+    let result = item;
+    
+    if (options.trim) {
+      result = result.replace(/^[\p{P}\s]+|[\p{P}\s]+$/gu, "");
+    }
+    
+    if (options.casing === "upper") {
+      result = result.toUpperCase();
+    } else if (options.casing === "lower") {
+      result = result.toLowerCase();
+    }
+    
+    return result;
+  });
+
+  if (options.removeEmpty) {
+    processedItems = processedItems.filter((item) => item !== "");
+  }
+
+  if (options.unique) {
+    processedItems = [...new Set(processedItems)];
+  }
+
+  if (options.sort) {
+    processedItems = processedItems.sort((a, b) => a.localeCompare(b));
+  }
+
+  let output = processedItems.join(targetDelim);
+
+  if (options.collapse) {
+    output = output.replace(/([\p{P}])\1+/gu, "$1");
+  }
+
   return output;
 }
 
