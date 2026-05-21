@@ -115,7 +115,7 @@ function App() {
         </nav>
         <div className="sidebar-footer">
           <ThemeToggle theme={theme} setTheme={setTheme} />
-          <a href="https://github.com/chunyang-wen/DevToys" target="_blank" rel="noreferrer"><Github size={16} /> Source</a>
+          <a href="https://github.com/chunyang-wen/sword" target="_blank" rel="noreferrer"><Github size={16} /> Source</a>
         </div>
       </aside>
       <main className="workspace">
@@ -684,7 +684,7 @@ function DnsTool() {
 
 function QrTool() {
   const [mode, setMode] = useState<"encode" | "decode">("encode");
-  const [input, setInput] = useState("https://github.com/chunyang-wen/DevToys");
+  const [input, setInput] = useState("https://github.com/chunyang-wen/sword");
   const [dataUrl, setDataUrl] = useState("");
   const [decoded, setDecoded] = useState("");
   const [fileName, setFileName] = useState("");
