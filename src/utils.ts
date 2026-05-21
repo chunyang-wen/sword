@@ -303,15 +303,167 @@ export function password(length: number, sets: { lower: boolean; upper: boolean;
   return { ok: true, value: [...bytes].map((byte) => chars[byte % chars.length]).join("") };
 }
 
-export async function sshKeyPair(): Promise<Result<string>> {
-  try {
-    const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
-    const privateJwk = await crypto.subtle.exportKey("jwk", pair.privateKey);
-    const publicJwk = await crypto.subtle.exportKey("jwk", pair.publicKey);
-    return { ok: true, value: JSON.stringify({ algorithm: "ECDSA P-256", privateJwk, publicJwk }, null, 2), warning: "Exported as JWK because browser WebCrypto does not produce OpenSSH private key files directly." };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Unable to generate key pair." };
+function writeStringBytes(str: string): Uint8Array {
+  const bytes = new TextEncoder().encode(str);
+  const res = new Uint8Array(4 + bytes.length);
+  const view = new DataView(res.buffer);
+  view.setUint32(0, bytes.length);
+  res.set(bytes, 4);
+  return res;
+}
+
+function writeVectorBytes(bytes: Uint8Array): Uint8Array {
+  const res = new Uint8Array(4 + bytes.length);
+  const view = new DataView(res.buffer);
+  view.setUint32(0, bytes.length);
+  res.set(bytes, 4);
+  return res;
+}
+
+function writeUint32Bytes(val: number): Uint8Array {
+  const res = new Uint8Array(4);
+  const view = new DataView(res.buffer);
+  view.setUint32(0, val);
+  return res;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
   }
+  return btoa(binary);
+}
+
+export interface SshKeyPairResult {
+  publicKey: string;
+  privateKey: string;
+}
+
+export async function generateSshKeyPair(options: {
+  algorithm: "ed25519" | "rsa";
+  bits?: number;
+  comment?: string;
+  passphrase?: string;
+}): Promise<Result<SshKeyPairResult>> {
+  const comment = options.comment || "";
+  const passphrase = options.passphrase || "";
+
+  if (options.algorithm === "rsa") {
+    try {
+      const bits = options.bits || 3072;
+      const keypair = forge.pki.rsa.generateKeyPair({ bits: bits, e: 0x10001 });
+      const pubSsh = forge.ssh.publicKeyToOpenSSH(keypair.publicKey, comment);
+      const privSsh = forge.ssh.privateKeyToOpenSSH(keypair.privateKey, passphrase);
+      return {
+        ok: true,
+        value: {
+          publicKey: pubSsh,
+          privateKey: privSsh,
+        },
+      };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Failed to generate RSA key pair." };
+    }
+  } else if (options.algorithm === "ed25519") {
+    try {
+      const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+      const pubBuffer = await crypto.subtle.exportKey("raw", pair.publicKey);
+      const pubKeyBytes = new Uint8Array(pubBuffer);
+
+      const privBuffer = await crypto.subtle.exportKey("pkcs8", pair.privateKey);
+      const privBytes = new Uint8Array(privBuffer);
+      const privKeyBytes = privBytes.slice(-32);
+
+      const pubKeyWire = new Uint8Array(4 + 11 + 4 + 32);
+      const pubView = new DataView(pubKeyWire.buffer);
+      pubView.setUint32(0, 11);
+      pubKeyWire.set(new TextEncoder().encode("ssh-ed25519"), 4);
+      pubView.setUint32(15, 32);
+      pubKeyWire.set(pubKeyBytes, 19);
+
+      const base64Pub = bytesToBase64(pubKeyWire);
+      const publicKey = `ssh-ed25519 ${base64Pub}${comment ? " " + comment : ""}`;
+
+      const magic = new Uint8Array([...new TextEncoder().encode("openssh-key-v1"), 0]);
+
+      const checkint = Math.floor(Math.random() * 0xffffffff);
+      const privHeader = new Uint8Array(8);
+      const privHeaderView = new DataView(privHeader.buffer);
+      privHeaderView.setUint32(0, checkint);
+      privHeaderView.setUint32(4, checkint);
+
+      const keyTypeBytes = writeStringBytes("ssh-ed25519");
+      const pubKeyVector = writeVectorBytes(pubKeyBytes);
+
+      const privAndPub = new Uint8Array(64);
+      privAndPub.set(privKeyBytes, 0);
+      privAndPub.set(pubKeyBytes, 32);
+      const privAndPubVector = writeVectorBytes(privAndPub);
+
+      const commentBytes = writeStringBytes(comment);
+
+      const totalPrivDataLen = privHeader.length + keyTypeBytes.length + pubKeyVector.length + privAndPubVector.length + commentBytes.length;
+      const privData = new Uint8Array(totalPrivDataLen);
+      let offset = 0;
+      privData.set(privHeader, offset); offset += privHeader.length;
+      privData.set(keyTypeBytes, offset); offset += keyTypeBytes.length;
+      privData.set(pubKeyVector, offset); offset += pubKeyVector.length;
+      privData.set(privAndPubVector, offset); offset += privAndPubVector.length;
+      privData.set(commentBytes, offset);
+
+      const padLen = 8 - (privData.length % 8);
+      const paddedPrivData = new Uint8Array(privData.length + padLen);
+      paddedPrivData.set(privData, 0);
+      for (let i = 0; i < padLen; i++) {
+        paddedPrivData[privData.length + i] = i + 1;
+      }
+
+      const ciphername = writeStringBytes("none");
+      const kdfname = writeStringBytes("none");
+      const kdfoptions = writeStringBytes("");
+      const numKeys = writeUint32Bytes(1);
+      const pubKeysVector = writeVectorBytes(pubKeyWire);
+      const privKeysVector = writeVectorBytes(paddedPrivData);
+
+      const totalLen = magic.length + ciphername.length + kdfname.length + kdfoptions.length + numKeys.length + pubKeysVector.length + privKeysVector.length;
+      const finalBytes = new Uint8Array(totalLen);
+      let finalOffset = 0;
+      finalBytes.set(magic, finalOffset); finalOffset += magic.length;
+      finalBytes.set(ciphername, finalOffset); finalOffset += ciphername.length;
+      finalBytes.set(kdfname, finalOffset); finalOffset += kdfname.length;
+      finalBytes.set(kdfoptions, finalOffset); finalOffset += kdfoptions.length;
+      finalBytes.set(numKeys, finalOffset); finalOffset += numKeys.length;
+      finalBytes.set(pubKeysVector, finalOffset); finalOffset += pubKeysVector.length;
+      finalBytes.set(privKeysVector, finalOffset); finalOffset += privKeysVector.length;
+
+      const base64Priv = bytesToBase64(finalBytes);
+      const formattedPriv = "-----BEGIN OPENSSH PRIVATE KEY-----\n" +
+        (base64Priv.match(/.{1,70}/g) || [base64Priv]).join("\n") +
+        "\n-----END OPENSSH PRIVATE KEY-----";
+
+      return {
+        ok: true,
+        value: {
+          publicKey,
+          privateKey: formattedPriv,
+        },
+      };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Failed to generate Ed25519 key pair." };
+    }
+  }
+
+  return { ok: false, error: "Unsupported algorithm." };
+}
+
+export async function sshKeyPair(): Promise<Result<string>> {
+  const result = await generateSshKeyPair({ algorithm: "ed25519" });
+  if (result.ok) {
+    return { ok: true, value: JSON.stringify(result.value, null, 2) };
+  }
+  return { ok: false, error: result.error };
 }
 
 const lorem = "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua";

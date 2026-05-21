@@ -43,6 +43,7 @@ import {
   regexInspect,
   safeSql,
   sshKeyPair,
+  generateSshKeyPair,
   textToolkit,
   unitNames,
   urlDecode,
@@ -270,7 +271,7 @@ function ToolSwitch({ id }: { id: string }) {
     case "hash-generator": return <HashTool />;
     case "uuid-generator": return <UuidTool />;
     case "password-generator": return <PasswordTool />;
-    case "ssh-key-generator": return <AsyncButtonTool label="Generate ECDSA P-256 key pair" run={sshKeyPair} />;
+    case "ssh-key-generator": return <SshKeyTool />;
     case "lorem-ipsum-generator": return <LoremTool />;
     case "dns-lookup": return <DnsTool />;
     case "url-parser-builder": return <SingleTransform sample="https://user:pass@example.com:443/docs?q=dev#top" transform={parseUrl} />;
@@ -889,6 +890,193 @@ function LoremTool() {
         </div>
       </div>
       <Output result={{ ok: true, value: loremIpsum(count) }} />
+    </div>
+  );
+}
+
+function downloadFile(content: string, filename: string) {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function SshKeyTool() {
+  const [algorithm, setAlgorithm] = useState<"ed25519" | "rsa">("ed25519");
+  const [bits, setBits] = useState<number>(3072);
+  const [comment, setComment] = useState<string>("hello.world@gmail.com");
+  const [passphrase, setPassphrase] = useState<string>("");
+  const [generating, setGenerating] = useState<boolean>(false);
+  const [keys, setKeys] = useState<{ publicKey: string; privateKey: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGenerate = () => {
+    setGenerating(true);
+    setError(null);
+    setTimeout(async () => {
+      try {
+        const result = await generateSshKeyPair({
+          algorithm,
+          bits,
+          comment,
+          passphrase,
+        });
+        if (result.ok) {
+          setKeys(result.value);
+        } else {
+          setError(result.error);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to generate keys.");
+      } finally {
+        setGenerating(false);
+      }
+    }, 50);
+  };
+
+  const privFilename = algorithm === "ed25519" ? "id_ed25519" : "id_rsa";
+  const pubFilename = algorithm === "ed25519" ? "id_ed25519.pub" : "id_rsa.pub";
+
+  return (
+    <div className="tool-grid two">
+      <div className="options-block">
+        <div className="field-header">
+          <span>Configuration</span>
+        </div>
+        <div className="options-container">
+          <label className="field">
+            <span>Algorithm</span>
+            <Segmented
+              className="ant-control compact-segmented"
+              block
+              size="large"
+              value={algorithm}
+              onChange={(value) => setAlgorithm(value as "ed25519" | "rsa")}
+              options={[
+                { value: "ed25519", label: "Ed25519 (Recommended)" },
+                { value: "rsa", label: "RSA" },
+              ]}
+            />
+          </label>
+
+          {algorithm === "rsa" && (
+            <label className="field">
+              <span>Key Length (Bits)</span>
+              <Select
+                className="ant-control"
+                size="large"
+                value={bits}
+                onChange={setBits}
+                options={[
+                  { value: 2048, label: "2048 bits" },
+                  { value: 3072, label: "3072 bits (Standard)" },
+                  { value: 4096, label: "4096 bits (Secure)" },
+                ]}
+              />
+            </label>
+          )}
+
+          <label className="field">
+            <span>Comment (e.g., Email)</span>
+            <input
+              type="text"
+              className="wide-input"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="e.g. user@example.com"
+            />
+          </label>
+
+          <label className="field">
+            <span>Passphrase (Optional)</span>
+            <input
+              type="password"
+              className="wide-input"
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              placeholder="Leave empty for no passphrase"
+            />
+          </label>
+
+          {algorithm === "ed25519" && passphrase && (
+            <div className="notice" style={{ marginTop: "12px" }}>
+              <strong>Notice</strong>
+              <p>Passphrase encryption is currently supported for RSA keys. Ed25519 keys will be generated unencrypted.</p>
+            </div>
+          )}
+
+          <button
+            className="primary-action"
+            onClick={handleGenerate}
+            disabled={generating}
+            style={{ width: "100%", marginTop: "16px" }}
+          >
+            {generating ? "Generating Key Pair..." : "Generate SSH Key Pair"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        {error && (
+          <div className="error" style={{ minHeight: "auto" }}>
+            {error}
+          </div>
+        )}
+
+        <div className="output-block" style={{ minHeight: "auto" }}>
+          <div className="output-bar">
+            <span>Public Key ({pubFilename})</span>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <CopyButton value={keys ? keys.publicKey : ""} />
+              <button
+                className="icon-button"
+                onClick={() => keys && downloadFile(keys.publicKey, pubFilename)}
+                disabled={!keys}
+                title="Download Public Key"
+              >
+                <Download size={16} />
+              </button>
+            </div>
+          </div>
+          <pre style={{ minHeight: "80px", maxHeight: "160px", padding: "14px 20px" }}>
+            {keys ? keys.publicKey : "Click Generate to generate public key."}
+          </pre>
+        </div>
+
+        <div className="output-block" style={{ minHeight: "auto" }}>
+          <div className="output-bar">
+            <span>Private Key ({privFilename})</span>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <CopyButton value={keys ? keys.privateKey : ""} />
+              <button
+                className="icon-button"
+                onClick={() => keys && downloadFile(keys.privateKey, privFilename)}
+                disabled={!keys}
+                title="Download Private Key"
+              >
+                <Download size={16} />
+              </button>
+            </div>
+          </div>
+          <pre style={{ minHeight: "260px", maxHeight: "400px", padding: "14px 20px" }}>
+            {keys ? keys.privateKey : "Click Generate to generate private key."}
+          </pre>
+        </div>
+
+        {keys && (
+          <div className="privacy-strip" style={{ margin: "0" }}>
+            <Check size={18} />
+            <span>
+              Keys are generated fully locally in your browser. No private keys or comments are ever sent to a server.
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

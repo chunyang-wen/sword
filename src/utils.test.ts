@@ -19,6 +19,7 @@ import {
   urlDecode,
   urlEncode,
   yamlToJson,
+  generateSshKeyPair,
 } from "./utils";
 
 describe("formatJson", () => {
@@ -122,5 +123,27 @@ describe("generators and parsers", () => {
   it("parses URLs", () => {
     const result = parseUrl("https://example.com/path?q=1");
     expect(result.ok && result.value).toContain('"hostname": "example.com"');
+  });
+});
+
+describe("generateSshKeyPair", () => {
+  it("generates Ed25519 keys", async () => {
+    const result = await generateSshKeyPair({ algorithm: "ed25519", comment: "test@example.com" });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.publicKey).toContain("ssh-ed25519");
+      expect(result.value.publicKey).toContain("test@example.com");
+      expect(result.value.privateKey).toContain("-----BEGIN OPENSSH PRIVATE KEY-----");
+    }
+  });
+
+  it("generates RSA keys", async () => {
+    const result = await generateSshKeyPair({ algorithm: "rsa", bits: 2048, comment: "test-rsa@example.com" });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.publicKey).toContain("ssh-rsa");
+      expect(result.value.publicKey).toContain("test-rsa@example.com");
+      expect(result.value.privateKey).toContain("-----BEGIN RSA PRIVATE KEY-----");
+    }
   });
 });
