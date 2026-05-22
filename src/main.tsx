@@ -135,8 +135,9 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem("theme", theme);
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.dataset.themeMode = theme;
+  }, [theme, resolvedTheme]);
 
   const grouped = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -155,7 +156,7 @@ function App() {
         token: {
           colorPrimary: resolvedTheme === "dark" ? "#9eacff" : "#0061a4",
           borderRadius: 10,
-          fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+          fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
         },
       }}
     >
