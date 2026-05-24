@@ -154,15 +154,13 @@ function App() {
       theme={{
         algorithm: resolvedTheme === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         token: {
-          colorPrimary: resolvedTheme === "dark" ? "#9eacff" : "#0061a4",
-          borderRadius: 10,
-          fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+          colorPrimary: resolvedTheme === "dark" ? "#45f0d1" : "#006b5f",
+          borderRadius: 8,
+          fontFamily: "\"IBM Plex Sans\", \"Aptos\", \"Segoe UI\", sans-serif",
         },
       }}
     >
       <div className="app-shell">
-      <div className="ambient-glow bg-glow-1"></div>
-      <div className="ambient-glow bg-glow-2"></div>
       <aside className="sidebar">
         <a className="brand" href="#/">
           <span className="brand-mark">D</span>
@@ -213,25 +211,52 @@ function ThemeToggle({ theme, setTheme }: { theme: Theme; setTheme: (theme: Them
 }
 
 function HomePage() {
+  const totalTools = tools.length;
+  const categoryList = Object.entries(categories) as Array<[ToolCategoryId, string]>;
   return (
     <div className="home">
       <div className="hero-panel">
-        <h1>Developer tools that stay in your browser.</h1>
+        <div className="hero-kicker">Developer Workbench</div>
+        <h1>Local-first utilities for the daily engineering loop.</h1>
         <p>Format payloads, transform text, decode tokens, generate secrets, and inspect web data without sending inputs to an app server.</p>
+        <div className="hero-meta">
+          <span>{totalTools} tools</span>
+          <span>{categoryList.length} categories</span>
+          <span>Browser resident</span>
+        </div>
+      </div>
+      <div className="category-strip" aria-label="Tool categories">
+        {categoryList.map(([id, title]) => (
+          <a key={id} href={`#${id}`} className="category-chip">
+            <span>{title}</span>
+            <strong>{tools.filter((tool) => tool.category === id).length}</strong>
+          </a>
+        ))}
       </div>
       <div className="privacy-strip">
         <Check size={18} />
         <span>Local-first by default. DNS Lookup is the only ready tool that calls an external API, and it uses explicit DNS-over-HTTPS.</span>
       </div>
-      <div className="home-grid">
-        {tools.map((tool) => (
-          <a href={tool.route} className="tool-card" key={tool.id}>
-            <tool.icon size={22} />
-            <strong>{tool.title}</strong>
-            <span>{tool.subtitle}</span>
-          </a>
-        ))}
-      </div>
+      {categoryList.map(([id, title]) => {
+        const categoryTools = tools.filter((tool) => tool.category === id);
+        return (
+          <section className="tool-section" id={id} key={id}>
+            <div className="section-heading">
+              <h2>{title}</h2>
+              <span>{categoryTools.length} tools</span>
+            </div>
+            <div className="home-grid">
+              {categoryTools.map((tool) => (
+                <a href={tool.route} className="tool-card" key={tool.id}>
+                  <tool.icon size={22} />
+                  <strong>{tool.title}</strong>
+                  <span>{tool.subtitle}</span>
+                </a>
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
