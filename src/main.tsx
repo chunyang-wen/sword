@@ -19,6 +19,7 @@ import {
   Cpu,
   Wifi,
   RefreshCw,
+  MapPin,
 } from "lucide-react";
 import QRCode from "qrcode";
 import jsQR from "jsqr";
@@ -341,6 +342,7 @@ function ToolSwitch({ id }: { id: string }) {
     case "lorem-ipsum-generator": return <LoremTool />;
     case "dns-lookup": return <DnsTool />;
     case "basic-info": return <BasicInfoTool />;
+    case "ip-lookup": return <IpLookupTool />;
     case "url-parser-builder": return <SingleTransform sample="https://user:pass@example.com:443/docs?q=dev#top" transform={parseUrl} />;
     case "http-status-codes": return <HttpStatusTool />;
     default: return <div className="notice">Tool not found.</div>;
@@ -1635,7 +1637,23 @@ function BasicInfoTool() {
         });
       } catch (e2) {
         console.error("Both IP lookup services failed:", e2);
-        setError("Failed to fetch IP and location information. Check your internet connection or adblocker.");
+        try {
+          const ipifyRes = await fetch("https://api.ipify.org?format=json");
+          if (ipifyRes.ok) {
+            const ipifyData = await ipifyRes.json();
+            setIpData({
+              ip: ipifyData.ip,
+              city: "Blocked",
+              region: "Blocked",
+              country: "Geolocation API Blocked by Adblocker/Shields",
+              org: "N/A",
+            });
+            return;
+          }
+        } catch (e3) {
+          console.error("ipify fallback failed:", e3);
+        }
+        setError("Failed to fetch IP and location information. Geolocation APIs may be blocked by your adblocker or Brave Shields.");
       }
     } finally {
       setLoading(false);
@@ -1907,6 +1925,219 @@ function BasicInfoTool() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function IpLookupTool() {
+  const [ipInput, setIpInput] = useState("");
+  const [ipData, setIpData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const performLookup = async (targetIp: string) => {
+    const trimmed = targetIp.trim();
+    setLoading(true);
+    setError(null);
+    setIpData(null);
+    try {
+      const url = trimmed ? `https://ipapi.co/${trimmed}/json/` : "https://ipapi.co/json/";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("ipapi failed");
+      const data = await res.json();
+      if (data.error) throw new Error(data.reason || "ipapi error");
+      setIpData({
+        ip: data.ip,
+        city: data.city,
+        region: data.region,
+        country: data.country_name,
+        countryCode: data.country_code,
+        postal: data.postal,
+        lat: data.latitude,
+        lon: data.longitude,
+        timezone: data.timezone,
+        org: data.org,
+        asn: data.asn,
+      });
+    } catch (e) {
+      console.warn("ipapi.co failed, trying ipinfo.io...", e);
+      try {
+        const url = trimmed ? `https://ipinfo.io/${trimmed}/json` : "https://ipinfo.io/json";
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("ipinfo failed");
+        const data = await res.json();
+        const [lat, lon] = (data.loc || "").split(",");
+        setIpData({
+          ip: data.ip,
+          city: data.city,
+          region: data.region,
+          country: data.country,
+          postal: data.postal,
+          lat: lat ? parseFloat(lat) : undefined,
+          lon: lon ? parseFloat(lon) : undefined,
+          timezone: data.timezone,
+          org: data.org,
+        });
+      } catch (e2) {
+        console.error("Both IP lookup services failed:", e2);
+        try {
+          const ipifyRes = await fetch("https://api.ipify.org?format=json");
+          if (ipifyRes.ok) {
+            const ipifyData = await ipifyRes.json();
+            setIpData({
+              ip: ipifyData.ip,
+              city: trimmed ? "Unavailable" : "Blocked",
+              region: trimmed ? "Unavailable" : "Blocked",
+              country: trimmed ? "Custom lookup failed" : "Geolocation API Blocked by Adblocker/Shields",
+              org: "N/A",
+            });
+            return;
+          }
+        } catch (e3) {
+          console.error("ipify fallback failed:", e3);
+        }
+        setError(trimmed 
+          ? "Failed to fetch info for this IP. Check the IP format or internet connection." 
+          : "Failed to fetch Geolocation details. Adblockers or privacy shields may be blocking the geolocation APIs (ipapi.co / ipinfo.io)."
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    performLookup("");
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    performLookup(ipInput);
+  };
+
+  const copyVal = async (key: string, val: string) => {
+    await navigator.clipboard.writeText(val);
+    setCopiedKey(key);
+    window.setTimeout(() => setCopiedKey(null), 1200);
+  };
+
+  const copyAll = async () => {
+    if (!ipData) return;
+    const lines = [
+      `=== IP Geolocation ===`,
+      `IP: ${ipData.ip || "N/A"}`,
+      `Location: ${[ipData.city, ipData.region, ipData.country].filter(Boolean).join(", ") || "N/A"}`,
+      `ISP/Org: ${ipData.org || "N/A"}`,
+      `ASN: ${ipData.asn || "N/A"}`,
+      `Postal Code: ${ipData.postal || "N/A"}`,
+      `Coordinates: ${ipData.lat && ipData.lon ? `${ipData.lat}, ${ipData.lon}` : "N/A"}`,
+      `Timezone: ${ipData.timezone || "N/A"}`,
+    ];
+    await navigator.clipboard.writeText(lines.join("\n"));
+    setCopiedKey("all");
+    window.setTimeout(() => setCopiedKey(null), 1200);
+  };
+
+  const ipRows = ipData ? [
+    { label: "IP Address", value: ipData.ip || "N/A" },
+    { label: "Location", value: [ipData.city, ipData.region, ipData.country].filter(Boolean).join(", ") || "N/A" },
+    { label: "ISP / Organization", value: ipData.org || "N/A" },
+    { label: "ASN", value: ipData.asn || "N/A" },
+    { label: "Postal Code", value: ipData.postal || "N/A" },
+    { label: "Coordinates", value: ipData.lat && ipData.lon ? `${ipData.lat}, ${ipData.lon}` : "N/A" },
+    { label: "Timezone", value: ipData.timezone || "N/A" },
+  ] : [];
+
+  return (
+    <div className="stacked-tool ip-lookup-tool">
+      <div className="controls-panel horizontal">
+        <form onSubmit={handleSubmit} style={{ display: "flex", gap: 12, width: "100%", alignItems: "flex-end" }}>
+          <label className="field wide-field" style={{ margin: 0 }}>
+            <span>IP Address</span>
+            <input
+              value={ipInput}
+              onChange={(e) => setIpInput(e.target.value)}
+              placeholder="e.g. 8.8.8.8, 2606:4700:4700::1111, or leave empty for your current IP"
+            />
+          </label>
+          <button type="submit" className="primary-action flush" disabled={loading} style={{ height: 44, margin: 0 }}>
+            {loading ? "Searching..." : "Lookup IP"}
+          </button>
+          {ipData && (
+            <button type="button" className="icon-button" onClick={copyAll} title="Copy result to clipboard" style={{ height: 44, width: 44, borderRadius: 8 }}>
+              {copiedKey === "all" ? <Check size={18} /> : <Clipboard size={18} />}
+            </button>
+          )}
+        </form>
+      </div>
+
+      {error && <div className="error">{error}</div>}
+
+      {ipData && (
+        <div className="tool-grid two">
+          <div className="options-panel" style={{ height: "100%" }}>
+            <div className="info-card-header">
+              <div className="info-card-title">
+                <Globe size={18} />
+                <span>Geolocation Details</span>
+              </div>
+            </div>
+            <div className="info-list">
+              {ipRows.map((row) => (
+                <div className="info-row" key={row.label}>
+                  <div className="label">{row.label}</div>
+                  <div className="value" title={row.value}>{row.value}</div>
+                  <div className="row-action">
+                    <button className="icon-button" onClick={() => copyVal(row.label, row.value)} disabled={row.value === "N/A"} title="Copy Value">
+                      {copiedKey === row.label ? <Check size={14} /> : <Clipboard size={14} />}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="options-panel" style={{ height: "100%" }}>
+            <div className="info-card-header">
+              <div className="info-card-title">
+                <MapPin size={18} />
+                <span>Visual Map Details</span>
+              </div>
+            </div>
+            {ipData.lat && ipData.lon ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16, height: "100%", justifyContent: "center", alignItems: "center", padding: "20px 0" }}>
+                <div style={{ fontSize: "0.9rem", color: "var(--muted)", textAlign: "center" }}>
+                  Coordinates: <strong>{ipData.lat}, {ipData.lon}</strong>
+                </div>
+                <a
+                  href={`https://www.google.com/maps?q=${ipData.lat},${ipData.lon}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="primary-action"
+                  style={{ marginTop: 0 }}
+                >
+                  <MapPin size={16} style={{ marginRight: 6 }} />
+                  Open in Google Maps
+                </a>
+                <a
+                  href={`https://www.openstreetmap.org/?mlat=${ipData.lat}&mlon=${ipData.lon}#map=14/${ipData.lat}/${ipData.lon}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="primary-action"
+                  style={{ marginTop: 0, background: "var(--surface-code)", border: "1px solid var(--border)", color: "var(--text)" }}
+                >
+                  Open in OpenStreetMap
+                </a>
+              </div>
+            ) : (
+              <div style={{ padding: 24, textAlign: "center", color: "var(--muted)" }}>
+                No coordinates available to generate maps.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
