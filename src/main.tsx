@@ -1595,10 +1595,12 @@ function BasicInfoTool() {
   const [error, setError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [battery, setBattery] = useState<{ level: number; charging: boolean } | null>(null);
+  const [geoBlocked, setGeoBlocked] = useState(false);
 
   const fetchIp = async () => {
     setLoading(true);
     setError(null);
+    setGeoBlocked(false);
     try {
       const res = await fetch("https://ipapi.co/json/");
       if (!res.ok) throw new Error("ipapi failed");
@@ -1643,11 +1645,12 @@ function BasicInfoTool() {
             const ipifyData = await ipifyRes.json();
             setIpData({
               ip: ipifyData.ip,
-              city: "Blocked",
-              region: "Blocked",
-              country: "Geolocation API Blocked by Adblocker/Shields",
+              city: "N/A",
+              region: "N/A",
+              country: "N/A",
               org: "N/A",
             });
+            setGeoBlocked(true);
             return;
           }
         } catch (e3) {
@@ -1840,6 +1843,13 @@ function BasicInfoTool() {
 
       {error && <div className="error">{error}</div>}
 
+      {geoBlocked && (
+        <div className="notice" style={{ marginTop: 0, marginBottom: 16 }}>
+          <strong>Geolocation Blocked by Browser/Adblocker</strong>
+          <p>Adblockers or browser shields are blocking the geolocation providers (ipapi.co / ipinfo.io). Your IP was resolved via a basic fallback, but location metadata is unavailable.</p>
+        </div>
+      )}
+
       <div className="tool-grid two">
         <div className="options-panel">
           <div className="info-card-header">
@@ -1935,12 +1945,14 @@ function IpLookupTool() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [geoBlocked, setGeoBlocked] = useState(false);
 
   const performLookup = async (targetIp: string) => {
     const trimmed = targetIp.trim();
     setLoading(true);
     setError(null);
     setIpData(null);
+    setGeoBlocked(false);
     try {
       const url = trimmed ? `https://ipapi.co/${trimmed}/json/` : "https://ipapi.co/json/";
       const res = await fetch(url);
@@ -1987,11 +1999,12 @@ function IpLookupTool() {
             const ipifyData = await ipifyRes.json();
             setIpData({
               ip: ipifyData.ip,
-              city: trimmed ? "Unavailable" : "Blocked",
-              region: trimmed ? "Unavailable" : "Blocked",
-              country: trimmed ? "Custom lookup failed" : "Geolocation API Blocked by Adblocker/Shields",
+              city: "N/A",
+              region: "N/A",
+              country: "N/A",
               org: "N/A",
             });
+            setGeoBlocked(true);
             return;
           }
         } catch (e3) {
@@ -2073,6 +2086,13 @@ function IpLookupTool() {
       </div>
 
       {error && <div className="error">{error}</div>}
+
+      {geoBlocked && (
+        <div className="notice" style={{ marginTop: 0, marginBottom: 16 }}>
+          <strong>Geolocation Blocked by Browser/Adblocker</strong>
+          <p>Adblockers or browser shields are blocking the geolocation providers (ipapi.co / ipinfo.io). Your IP was resolved via a basic fallback, but location metadata is unavailable.</p>
+        </div>
+      )}
 
       {ipData && (
         <div className="tool-grid two">
