@@ -722,10 +722,19 @@ function oidName(oid: string): string {
 export async function retrieveServerCertificate(target: string, port: number): Promise<Result<string>> {
   if (!target.trim()) return { ok: false, error: "Enter a hostname or HTTPS URL." };
 
-  const response = await fetch(`/api/certificate?target=${encodeURIComponent(target.trim())}&port=${encodeURIComponent(String(port))}`);
+  const isLocal = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const baseUrl = isLocal ? "" : "https://deepfish.pythonanywhere.com";
+
+  const response = await fetch(`${baseUrl}/api/certificate?target=${encodeURIComponent(target.trim())}&port=${encodeURIComponent(String(port))}`);
   const payload = await response.json().catch(() => ({})) as { certificates?: string[]; error?: string };
 
   if (!response.ok) {
+    if (response.status === 404) {
+      return {
+        ok: false,
+        error: "Certificate retrieval needs a server-side /api/certificate endpoint. Static deployments like GitHub Pages cannot open TLS sockets, so use the OpenSSL command shown above or run the app locally.",
+      };
+    }
     return { ok: false, error: payload.error || `Certificate retrieval failed with HTTP ${response.status}.` };
   }
 
