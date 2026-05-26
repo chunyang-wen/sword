@@ -844,7 +844,24 @@ input[type="checkbox"]:focus-visible { outline: 0; box-shadow: var(--focus); }
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented { padding: 4px; border-radius: var(--radius); }
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented.compact-segmented { max-width: 460px; }
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-group { gap: 4px; }
-:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item { border-radius: var(--radius-small); min-height: 34px; min-width: 76px; }
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-small);
+  min-height: 34px;
+  min-width: 76px;
+}
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 12px;
+  line-height: 1;
+  text-align: center;
+}
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item-selected { background: var(--primary); }
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item-selected .ant-segmented-item-label { color: var(--primary-on); font-weight: 800; }
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select input.ant-select-input {
@@ -873,9 +890,22 @@ input[type="checkbox"]:focus-visible { outline: 0; box-shadow: var(--focus); }
 .compact-output .output-block pre,
 .compact-output .error { min-height: 160px; }
 
+.ssh-key-layout .options-container { min-height: auto; }
+.ssh-generate-action {
+  width: 100%;
+  margin-top: 14px;
+}
+.ssh-output-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 43px;
+}
+
 .certificate-controls { margin-bottom: 0; }
 .certificate-port-field { flex: 0 1 140px !important; }
-.openssl-hint {
+.openssl-hint,
+.cli-hint {
   display: grid;
   gap: 9px;
   padding: 14px 16px 16px;
@@ -883,7 +913,8 @@ input[type="checkbox"]:focus-visible { outline: 0; box-shadow: var(--focus); }
   border-radius: var(--radius);
   background: var(--warning-tonal);
 }
-.openssl-hint pre {
+.openssl-hint pre,
+.cli-hint pre {
   min-height: auto;
   margin: 0;
   padding: 13px 14px;

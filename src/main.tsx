@@ -1001,6 +1001,10 @@ function downloadFile(content: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function shellQuote(value: string) {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 function SshKeyTool() {
   const [algorithm, setAlgorithm] = useState<"ed25519" | "rsa">("ed25519");
   const [bits, setBits] = useState<number>(3072);
@@ -1036,9 +1040,21 @@ function SshKeyTool() {
 
   const privFilename = algorithm === "ed25519" ? "id_ed25519" : "id_rsa";
   const pubFilename = algorithm === "ed25519" ? "id_ed25519.pub" : "id_rsa.pub";
+  const sshKeygenCommand = [
+    "ssh-keygen",
+    "-t",
+    algorithm,
+    ...(algorithm === "rsa" ? ["-b", String(bits)] : []),
+    "-C",
+    shellQuote(comment),
+    "-f",
+    `~/.ssh/${privFilename}`,
+    "-N",
+    shellQuote(passphrase),
+  ].join(" ");
 
   return (
-    <div className="tool-grid two">
+    <div className="tool-grid two ssh-key-layout">
       <div className="options-block">
         <div className="field-header">
           <span>Configuration</span>
@@ -1106,17 +1122,24 @@ function SshKeyTool() {
           )}
 
           <button
-            className="primary-action"
+            className="primary-action ssh-generate-action"
             onClick={handleGenerate}
             disabled={generating}
-            style={{ width: "100%", marginTop: "16px" }}
           >
             {generating ? "Generating Key Pair..." : "Generate SSH Key Pair"}
           </button>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <div className="ssh-output-column">
+        <div className="cli-hint">
+          <div className="output-bar">
+            <span>ssh-keygen</span>
+            <CopyButton value={sshKeygenCommand} />
+          </div>
+          <pre>{sshKeygenCommand}</pre>
+        </div>
+
         {error && (
           <div className="error" style={{ minHeight: "auto" }}>
             {error}
