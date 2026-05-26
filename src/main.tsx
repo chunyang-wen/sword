@@ -14,6 +14,11 @@ import {
   Search,
   Sun,
   Upload,
+  Globe,
+  Monitor,
+  Cpu,
+  Wifi,
+  RefreshCw,
 } from "lucide-react";
 import QRCode from "qrcode";
 import jsQR from "jsqr";
@@ -335,6 +340,7 @@ function ToolSwitch({ id }: { id: string }) {
     case "ssh-key-generator": return <SshKeyTool />;
     case "lorem-ipsum-generator": return <LoremTool />;
     case "dns-lookup": return <DnsTool />;
+    case "basic-info": return <BasicInfoTool />;
     case "url-parser-builder": return <SingleTransform sample="https://user:pass@example.com:443/docs?q=dev#top" transform={parseUrl} />;
     case "http-status-codes": return <HttpStatusTool />;
     default: return <div className="notice">Tool not found.</div>;
@@ -1576,6 +1582,330 @@ function HttpStatusTool() {
             <span>{title}</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function BasicInfoTool() {
+  const [ipData, setIpData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [battery, setBattery] = useState<{ level: number; charging: boolean } | null>(null);
+
+  const fetchIp = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("https://ipapi.co/json/");
+      if (!res.ok) throw new Error("ipapi failed");
+      const data = await res.json();
+      if (data.error) throw new Error(data.reason || "ipapi error");
+      setIpData({
+        ip: data.ip,
+        city: data.city,
+        region: data.region,
+        country: data.country_name,
+        countryCode: data.country_code,
+        postal: data.postal,
+        lat: data.latitude,
+        lon: data.longitude,
+        timezone: data.timezone,
+        org: data.org,
+        asn: data.asn,
+      });
+    } catch (e) {
+      console.warn("ipapi.co failed, trying ipinfo.io...", e);
+      try {
+        const res = await fetch("https://ipinfo.io/json");
+        if (!res.ok) throw new Error("ipinfo failed");
+        const data = await res.json();
+        const [lat, lon] = (data.loc || "").split(",");
+        setIpData({
+          ip: data.ip,
+          city: data.city,
+          region: data.region,
+          country: data.country,
+          postal: data.postal,
+          lat: lat ? parseFloat(lat) : undefined,
+          lon: lon ? parseFloat(lon) : undefined,
+          timezone: data.timezone,
+          org: data.org,
+        });
+      } catch (e2) {
+        console.error("Both IP lookup services failed:", e2);
+        setError("Failed to fetch IP and location information. Check your internet connection or adblocker.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchIp();
+
+    if (typeof (navigator as any).getBattery === "function") {
+      (navigator as any).getBattery().then((batt: any) => {
+        setBattery({
+          level: Math.round(batt.level * 100),
+          charging: batt.charging
+        });
+        const updateBattery = () => {
+          setBattery({
+            level: Math.round(batt.level * 100),
+            charging: batt.charging
+          });
+        };
+        batt.addEventListener("levelchange", updateBattery);
+        batt.addEventListener("chargingchange", updateBattery);
+      });
+    }
+  }, []);
+
+  const ua = navigator.userAgent;
+  const parsedUa = useMemo(() => {
+    let browserName = "Unknown Browser";
+    let browserVersion = "Unknown";
+    let osName = "Unknown OS";
+    let osVersion = "Unknown";
+
+    if (/Windows NT 10.0/.test(ua)) { osName = "Windows"; osVersion = "10 / 11"; }
+    else if (/Windows NT 6.3/.test(ua)) { osName = "Windows"; osVersion = "8.1"; }
+    else if (/Windows NT 6.2/.test(ua)) { osName = "Windows"; osVersion = "8"; }
+    else if (/Windows NT 6.1/.test(ua)) { osName = "Windows"; osVersion = "7"; }
+    else if (/Macintosh;.*Mac OS X (\d+)[_.](\d+)/.test(ua)) {
+      const match = ua.match(/Mac OS X (\d+)[_.](\d+)/);
+      osName = "macOS";
+      osVersion = match ? `${match[1]}.${match[2]}` : "OS X";
+    }
+    else if (/iPhone;.*CPU iPhone OS (\d+)[_.](\d+)/.test(ua)) {
+      const match = ua.match(/CPU iPhone OS (\d+)[_.](\d+)/);
+      osName = "iOS";
+      osVersion = match ? `${match[1]}.${match[2]}` : "";
+    }
+    else if (/iPad;.*CPU OS (\d+)[_.](\d+)/.test(ua)) {
+      const match = ua.match(/CPU OS (\d+)[_.](\d+)/);
+      osName = "iPadOS";
+      osVersion = match ? `${match[1]}.${match[2]}` : "";
+    }
+    else if (/Android (\d+)/.test(ua)) {
+      const match = ua.match(/Android (\d+)/);
+      osName = "Android";
+      osVersion = match ? match[1] : "";
+    }
+    else if (/Linux/.test(ua)) { osName = "Linux"; }
+
+    if (/OPR\/(\d+)/.test(ua)) {
+      browserName = "Opera";
+      browserVersion = ua.match(/OPR\/(\d+)/)?.[1] || "Unknown";
+    } else if (/Edg\/(\d+)/.test(ua)) {
+      browserName = "Microsoft Edge";
+      browserVersion = ua.match(/Edg\/(\d+)/)?.[1] || "Unknown";
+    } else if (/Chrome\/(\d+)/.test(ua)) {
+      browserName = "Google Chrome";
+      browserVersion = ua.match(/Chrome\/(\d+)/)?.[1] || "Unknown";
+    } else if (/Safari\/(\d+)/.test(ua)) {
+      browserName = "Safari";
+      browserVersion = ua.match(/Version\/(\d+)/)?.[1] || ua.match(/Safari\/(\d+)/)?.[1] || "Unknown";
+    } else if (/Firefox\/(\d+)/.test(ua)) {
+      browserName = "Mozilla Firefox";
+      browserVersion = ua.match(/Firefox\/(\d+)/)?.[1] || "Unknown";
+    } else if (/MSIE (\d+)/.test(ua)) {
+      browserName = "Internet Explorer";
+      browserVersion = ua.match(/MSIE (\d+)/)?.[1] || "Unknown";
+    } else if (/Trident.*rv:(\d+)/.test(ua)) {
+      browserName = "Internet Explorer";
+      browserVersion = ua.match(/rv:(\d+)/)?.[1] || "Unknown";
+    }
+
+    return { browserName, browserVersion, osName, osVersion };
+  }, [ua]);
+
+  const copyVal = async (key: string, val: string) => {
+    await navigator.clipboard.writeText(val);
+    setCopiedKey(key);
+    window.setTimeout(() => setCopiedKey(null), 1200);
+  };
+
+  const copyAll = async () => {
+    const lines = [
+      `=== IP & Location ===`,
+      `IP: ${ipData?.ip || "N/A"}`,
+      `Location: ${[ipData?.city, ipData?.region, ipData?.country].filter(Boolean).join(", ") || "N/A"}`,
+      `ISP/Org: ${ipData?.org || "N/A"}`,
+      `Timezone: ${ipData?.timezone || "N/A"}`,
+      ``,
+      `=== Browser & Client ===`,
+      `Browser: ${parsedUa.browserName} v${parsedUa.browserVersion}`,
+      `OS: ${parsedUa.osName} ${parsedUa.osVersion}`,
+      `Language: ${navigator.language}`,
+      `Logical Processors: ${navigator.hardwareConcurrency || "N/A"}`,
+      `Device Memory: ${((navigator as any).deviceMemory ? (navigator as any).deviceMemory + " GB" : "N/A")}`,
+      `Screen Resolution: ${window.screen.width} x ${window.screen.height}`,
+      `Viewport: ${window.innerWidth} x ${window.innerHeight}`,
+      `User Agent: ${ua}`,
+    ];
+    await navigator.clipboard.writeText(lines.join("\n"));
+    setCopiedKey("all");
+    window.setTimeout(() => setCopiedKey(null), 1200);
+  };
+
+  const ipRows = [
+    { label: "IP Address", value: ipData?.ip || "N/A" },
+    { label: "Location", value: [ipData?.city, ipData?.region, ipData?.country].filter(Boolean).join(", ") || "N/A" },
+    { label: "ISP / Organization", value: ipData?.org || "N/A" },
+    { label: "ASN", value: ipData?.asn || "N/A" },
+    { label: "Postal Code", value: ipData?.postal || "N/A" },
+    { label: "Coordinates", value: ipData?.lat && ipData?.lon ? `${ipData.lat}, ${ipData.lon}` : "N/A" },
+    { label: "Timezone", value: ipData?.timezone || "N/A" },
+  ];
+
+  const browserRows = [
+    { label: "Browser Name", value: parsedUa.browserName },
+    { label: "Browser Version", value: parsedUa.browserVersion },
+    { label: "Operating System", value: `${parsedUa.osName} ${parsedUa.osVersion}` },
+    { label: "Primary Language", value: navigator.language },
+    { label: "Languages Allowed", value: navigator.languages.join(", ") },
+    { label: "Cookies Enabled", value: navigator.cookieEnabled ? "Yes" : "No" },
+    { label: "Online Status", value: navigator.onLine ? "Online" : "Offline" },
+  ];
+
+  const deviceRows = [
+    { label: "Screen Resolution", value: `${window.screen.width} x ${window.screen.height}` },
+    { label: "Viewport Size", value: `${window.innerWidth} x ${window.innerHeight}` },
+    { label: "Device Pixel Ratio", value: `${window.devicePixelRatio}x` },
+    { label: "CPU Cores", value: navigator.hardwareConcurrency ? String(navigator.hardwareConcurrency) : "N/A" },
+    { label: "Device Memory", value: (navigator as any).deviceMemory ? `${(navigator as any).deviceMemory} GB` : "N/A" },
+    { label: "Battery Status", value: battery ? `${battery.level}% ${battery.charging ? "(Charging)" : "(Discharging)"}` : "N/A" },
+    { label: "PDF Support", value: navigator.pdfViewerEnabled ? "Yes" : "No" },
+  ];
+
+  return (
+    <div className="stacked-tool basic-info-tool">
+      <div className="quick-actions-bar">
+        <button className="primary-action flush" onClick={fetchIp} disabled={loading}>
+          <RefreshCw size={16} className={loading ? "spin" : ""} style={{ marginRight: 6 }} />
+          {loading ? "Refreshing..." : "Refresh IP"}
+        </button>
+        <button className="icon-button" onClick={copyAll} title="Copy all to clipboard" style={{ height: 42, width: 42, borderRadius: 8 }}>
+          {copiedKey === "all" ? <Check size={18} /> : <Clipboard size={18} />}
+        </button>
+      </div>
+
+      <div className="basic-info-hero-grid">
+        <div className="info-hero-card">
+          <Globe className="card-icon" />
+          <span>My IP Address</span>
+          <strong>{loading ? "Fetching..." : error ? "N/A" : ipData?.ip || "N/A"}</strong>
+          <p>{loading ? "Locating..." : error ? "Error retrieving IP" : ipData?.org || "Local network"}</p>
+        </div>
+        <div className="info-hero-card">
+          <Monitor className="card-icon" />
+          <span>Browser & OS</span>
+          <strong>{parsedUa.browserName}</strong>
+          <p>{parsedUa.osName} {parsedUa.osVersion}</p>
+        </div>
+        <div className="info-hero-card">
+          <Cpu className="card-icon" />
+          <span>Screen & Viewport</span>
+          <strong>{window.screen.width} x {window.screen.height}</strong>
+          <p>Viewport: {window.innerWidth} x {window.innerHeight}</p>
+        </div>
+        <div className="info-hero-card">
+          <Wifi className="card-icon" />
+          <span>Connection Status</span>
+          <strong>{navigator.onLine ? "Online" : "Offline"}</strong>
+          <p>Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
+        </div>
+      </div>
+
+      {error && <div className="error">{error}</div>}
+
+      <div className="tool-grid two">
+        <div className="options-panel">
+          <div className="info-card-header">
+            <div className="info-card-title">
+              <Globe size={18} />
+              <span>IP & Geolocation Info</span>
+            </div>
+          </div>
+          <div className="info-list">
+            {ipRows.map((row) => (
+              <div className="info-row" key={row.label}>
+                <div className="label">{row.label}</div>
+                <div className="value" title={row.value}>{row.value}</div>
+                <div className="row-action">
+                  <button className="icon-button" onClick={() => copyVal(row.label, row.value)} disabled={row.value === "N/A"} title="Copy Value">
+                    {copiedKey === row.label ? <Check size={14} /> : <Clipboard size={14} />}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="options-panel">
+          <div className="info-card-header">
+            <div className="info-card-title">
+              <Monitor size={18} />
+              <span>Browser & Environment</span>
+            </div>
+          </div>
+          <div className="info-list">
+            {browserRows.map((row) => (
+              <div className="info-row" key={row.label}>
+                <div className="label">{row.label}</div>
+                <div className="value" title={row.value}>{row.value}</div>
+                <div className="row-action">
+                  <button className="icon-button" onClick={() => copyVal(row.label, row.value)} disabled={row.value === "N/A"} title="Copy Value">
+                    {copiedKey === row.label ? <Check size={14} /> : <Clipboard size={14} />}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="tool-grid two">
+        <div className="options-panel">
+          <div className="info-card-header">
+            <div className="info-card-title">
+              <Cpu size={18} />
+              <span>Hardware & Device Details</span>
+            </div>
+          </div>
+          <div className="info-list">
+            {deviceRows.map((row) => (
+              <div className="info-row" key={row.label}>
+                <div className="label">{row.label}</div>
+                <div className="value" title={row.value}>{row.value}</div>
+                <div className="row-action">
+                  <button className="icon-button" onClick={() => copyVal(row.label, row.value)} disabled={row.value === "N/A"} title="Copy Value">
+                    {copiedKey === row.label ? <Check size={14} /> : <Clipboard size={14} />}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="options-panel">
+          <div className="info-card-header">
+            <div className="info-card-title">
+              <Monitor size={18} />
+              <span>Raw User Agent</span>
+            </div>
+          </div>
+          <div className="ua-container">
+            <div className="ua-box">{ua}</div>
+            <button className="primary-action" onClick={() => copyVal("ua", ua)}>
+              <Clipboard size={16} style={{ marginRight: 6 }} />
+              Copy User Agent
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

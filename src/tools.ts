@@ -21,6 +21,7 @@ import {
   Table2,
   Text,
   Type,
+  Info,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -77,6 +78,7 @@ export const tools: ToolDefinition[] = [
   { id: "ssh-key-generator", title: "SSH Key", subtitle: "Generate WebCrypto key pairs", category: "generators", route: "#/tools/ssh-key-generator", icon: FileKey2, status: "ready" },
   { id: "lorem-ipsum-generator", title: "Lorem Ipsum", subtitle: "Generate placeholder text", category: "generators", route: "#/tools/lorem-ipsum-generator", icon: Type, status: "ready" },
   { id: "dns-lookup", title: "DNS Lookup", subtitle: "Query records through DNS-over-HTTPS", category: "network", route: "#/tools/dns-lookup", icon: Network, status: "ready" },
+  { id: "basic-info", title: "Basic Info", subtitle: "Inspect IP, location, browser, and device metrics", category: "network", route: "#/tools/basic-info", icon: Info, status: "ready" },
   { id: "url-parser-builder", title: "URL Parser", subtitle: "Parse and build URLs", category: "network", route: "#/tools/url-parser-builder", icon: Link, status: "ready" },
   { id: "http-status-codes", title: "HTTP Status", subtitle: "HTTP status code reference", category: "network", route: "#/tools/http-status-codes", icon: FileText, status: "ready" },
 ];
