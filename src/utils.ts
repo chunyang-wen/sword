@@ -513,20 +513,134 @@ export function diffText(left: string, right: string): string {
 export function certificateInfo(input: string): Result<string> {
   if (!input.trim()) return emptyOk("");
   try {
-    const cert = forge.pki.certificateFromPem(input);
+    const blocks = input.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [input];
+    const certificates = blocks.map((block, index) => ({ position: index + 1, ...parseCertificateSummary(block) }));
+
     return {
       ok: true,
-      value: JSON.stringify({
-        subject: cert.subject.attributes.map((a) => `${a.shortName || a.name}=${a.value}`).join(", "),
-        issuer: cert.issuer.attributes.map((a) => `${a.shortName || a.name}=${a.value}`).join(", "),
-        serialNumber: cert.serialNumber,
-        validFrom: cert.validity.notBefore.toISOString(),
-        validTo: cert.validity.notAfter.toISOString(),
-      }, null, 2),
+      value: JSON.stringify(certificates.length === 1 ? certificates[0] : certificates, null, 2),
     };
   } catch {
     return { ok: false, error: "Paste a valid PEM encoded X.509 certificate." };
   }
+}
+
+function parseCertificateSummary(pem: string) {
+  try {
+    const cert = forge.pki.certificateFromPem(pem);
+    const subjectAltName = cert.extensions.find((extension) => extension.name === "subjectAltName") as { altNames?: Array<{ type: number; value?: string }> } | undefined;
+    const dnsNames = subjectAltName?.altNames
+      ?.filter((name) => name.type === 2 && name.value)
+      .map((name) => name.value) ?? [];
+
+    return {
+      subject: cert.subject.attributes.map((a) => `${a.shortName || a.name}=${a.value}`).join(", "),
+      issuer: cert.issuer.attributes.map((a) => `${a.shortName || a.name}=${a.value}`).join(", "),
+      serialNumber: cert.serialNumber,
+      validFrom: cert.validity.notBefore.toISOString(),
+      validTo: cert.validity.notAfter.toISOString(),
+      dnsNames,
+    };
+  } catch {
+    return parseCertificateAsn1(pem);
+  }
+}
+
+function parseCertificateAsn1(pem: string) {
+  const message = forge.pem.decode(pem)[0];
+  if (!message?.body) throw new Error("Invalid PEM certificate.");
+
+  const cert = forge.asn1.fromDer(message.body);
+  const tbs = child(cert, 0);
+  let cursor = child(tbs, 0).tagClass === forge.asn1.Class.CONTEXT_SPECIFIC ? 1 : 0;
+  const serialNumber = bytesToHex(String(child(tbs, cursor++).value));
+  cursor += 1; // signature algorithm
+  const issuer = readName(child(tbs, cursor++));
+  const validity = child(tbs, cursor++);
+  const validFrom = readTime(child(validity, 0)).toISOString();
+  const validTo = readTime(child(validity, 1)).toISOString();
+  const subject = readName(child(tbs, cursor++));
+  const dnsNames = readDnsNames(tbs);
+
+  return { subject, issuer, serialNumber, validFrom, validTo, dnsNames };
+}
+
+function child(node: forge.asn1.Asn1, index: number): forge.asn1.Asn1 {
+  if (!Array.isArray(node.value) || !node.value[index]) throw new Error("Invalid X.509 structure.");
+  return node.value[index] as forge.asn1.Asn1;
+}
+
+function readName(name: forge.asn1.Asn1): string {
+  if (!Array.isArray(name.value)) return "";
+  return name.value.flatMap((rdn) => {
+    if (!Array.isArray(rdn.value)) return [];
+    return rdn.value.map((attribute) => {
+      const oid = forge.asn1.derToOid(String(child(attribute as forge.asn1.Asn1, 0).value));
+      const value = String(child(attribute as forge.asn1.Asn1, 1).value);
+      return `${oidName(oid)}=${value}`;
+    });
+  }).join(", ");
+}
+
+function readTime(node: forge.asn1.Asn1): Date {
+  const value = String(node.value);
+  if (node.type === forge.asn1.Type.UTCTIME) return forge.asn1.utcTimeToDate(value);
+  if (node.type === forge.asn1.Type.GENERALIZEDTIME) return forge.asn1.generalizedTimeToDate(value);
+  throw new Error("Invalid certificate validity time.");
+}
+
+function readDnsNames(tbs: forge.asn1.Asn1): string[] {
+  if (!Array.isArray(tbs.value)) return [];
+  const extensionsWrapper = tbs.value.find((node) => (node as forge.asn1.Asn1).tagClass === forge.asn1.Class.CONTEXT_SPECIFIC && (node as forge.asn1.Asn1).type === 3) as forge.asn1.Asn1 | undefined;
+  const extensions = extensionsWrapper ? child(extensionsWrapper, 0) : undefined;
+  if (!extensions || !Array.isArray(extensions.value)) return [];
+
+  const subjectAltName = extensions.value.find((extension) => {
+    const oid = forge.asn1.derToOid(String(child(extension as forge.asn1.Asn1, 0).value));
+    return oid === "2.5.29.17";
+  }) as forge.asn1.Asn1 | undefined;
+  if (!subjectAltName) return [];
+
+  const extensionValue = child(subjectAltName, Array.isArray(subjectAltName.value) && subjectAltName.value.length === 3 ? 2 : 1);
+  const generalNames = forge.asn1.fromDer(String(extensionValue.value));
+  if (!Array.isArray(generalNames.value)) return [];
+  return generalNames.value
+    .filter((name) => (name as forge.asn1.Asn1).tagClass === forge.asn1.Class.CONTEXT_SPECIFIC && (name as forge.asn1.Asn1).type === 2)
+    .map((name) => String((name as forge.asn1.Asn1).value));
+}
+
+function bytesToHex(bytes: string): string {
+  return [...bytes].map((char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join("").replace(/^00/, "");
+}
+
+function oidName(oid: string): string {
+  const names: Record<string, string> = {
+    "2.5.4.3": "CN",
+    "2.5.4.6": "C",
+    "2.5.4.7": "L",
+    "2.5.4.8": "ST",
+    "2.5.4.10": "O",
+    "2.5.4.11": "OU",
+    "1.2.840.113549.1.9.1": "E",
+  };
+  return names[oid] ?? oid;
+}
+
+export async function retrieveServerCertificate(target: string, port: number): Promise<Result<string>> {
+  if (!target.trim()) return { ok: false, error: "Enter a hostname or HTTPS URL." };
+
+  const response = await fetch(`/api/certificate?target=${encodeURIComponent(target.trim())}&port=${encodeURIComponent(String(port))}`);
+  const payload = await response.json().catch(() => ({})) as { certificates?: string[]; error?: string };
+
+  if (!response.ok) {
+    return { ok: false, error: payload.error || `Certificate retrieval failed with HTTP ${response.status}.` };
+  }
+
+  if (!payload.certificates?.length) {
+    return { ok: false, error: "The server did not return a certificate chain." };
+  }
+
+  return { ok: true, value: payload.certificates.join("\n\n") };
 }
 
 export const httpStatuses = [

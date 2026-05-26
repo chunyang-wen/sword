@@ -41,6 +41,7 @@ import {
   parseUrl,
   password,
   regexInspect,
+  retrieveServerCertificate,
   safeSql,
   sshKeyPair,
   generateSshKeyPair,
@@ -293,7 +294,7 @@ function ToolSwitch({ id }: { id: string }) {
     case "url-coder": return <EncodeDecodeTool encode={urlEncode} decode={urlDecode} sample="https://example.com/search?q=dev utils" />;
     case "base64-coder": return <EncodeDecodeTool encode={base64Encode} decode={base64Decode} sample="Hello, DevUtils" />;
     case "jwt-decoder": return <SingleTransform sample={jwtSample} transform={decodeJwt} />;
-    case "certificate-decoder": return <SingleTransform sample="" transform={certificateInfo} />;
+    case "certificate-decoder": return <CertificateTool />;
     case "hash-generator": return <HashTool />;
     case "uuid-generator": return <UuidTool />;
     case "password-generator": return <PasswordTool />;
@@ -416,6 +417,74 @@ function SingleTransform({ sample, transform }: { sample: string; transform: (in
     <div className="tool-grid two">
       <TextArea label="Input" value={input} setValue={setInput} />
       <Output result={result} />
+    </div>
+  );
+}
+
+function CertificateTool() {
+  const [target, setTarget] = useState("example.com");
+  const [port, setPort] = useState("443");
+  const [input, setInput] = useState("");
+  const [retrieving, setRetrieving] = useState(false);
+  const [retrieveResult, setRetrieveResult] = useState<Result<string>>({ ok: true, value: "" });
+  const result = useMemo(() => certificateInfo(input), [input]);
+  const trimmedTarget = target.trim() || "example.com";
+  const effectivePort = Number.isInteger(Number(port)) && Number(port) > 0 && Number(port) <= 65535 ? Number(port) : 443;
+  const opensslCommand = `openssl s_client -connect ${trimmedTarget}:${effectivePort} -servername ${trimmedTarget} -showcerts </dev/null 2>/dev/null | openssl x509 -outform PEM`;
+
+  const handleRetrieve = async () => {
+    setRetrieving(true);
+    setRetrieveResult({ ok: true, value: "" });
+    try {
+      const next = await retrieveServerCertificate(target, effectivePort);
+      setRetrieveResult(next);
+      if (next.ok) setInput(next.value);
+    } catch (error) {
+      setRetrieveResult({
+        ok: false,
+        error: error instanceof Error ? error.message : "Certificate retrieval failed.",
+      });
+    } finally {
+      setRetrieving(false);
+    }
+  };
+
+  return (
+    <div className="stacked-tool">
+      <div className="controls-panel horizontal certificate-controls">
+        <label className="field wide-field">
+          <span>Website</span>
+          <input value={target} onChange={(event) => setTarget(event.target.value)} placeholder="example.com or https://example.com" />
+        </label>
+        <label className="field certificate-port-field">
+          <span>Port</span>
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            value={port}
+            onChange={(event) => setPort(event.target.value)}
+          />
+        </label>
+        <button className="primary-action flush" onClick={handleRetrieve} disabled={retrieving}>
+          {retrieving ? "Retrieving..." : "Retrieve Certificate"}
+        </button>
+      </div>
+
+      <div className="openssl-hint">
+        <div className="output-bar">
+          <span>OpenSSL</span>
+          <CopyButton value={opensslCommand} />
+        </div>
+        <pre>{opensslCommand}</pre>
+      </div>
+
+      {!retrieveResult.ok && <div className="error compact-error">{retrieveResult.error}</div>}
+
+      <div className="tool-grid two">
+        <TextArea label="PEM Certificate" value={input} setValue={setInput} placeholder="Paste a PEM encoded X.509 certificate, or retrieve one from a website above." />
+        <Output result={result} />
+      </div>
     </div>
   );
 }

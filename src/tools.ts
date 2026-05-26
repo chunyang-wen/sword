@@ -70,7 +70,7 @@ export const tools: ToolDefinition[] = [
   { id: "url-coder", title: "URL", subtitle: "Percent-encode and decode", category: "encoders", route: "#/tools/url-coder", icon: Link, status: "ready" },
   { id: "base64-coder", title: "Base64", subtitle: "Transform Base64 content", category: "encoders", route: "#/tools/base64-coder", icon: CaseSensitive, status: "ready" },
   { id: "jwt-decoder", title: "JWT", subtitle: "Inspect token contents", category: "encoders", route: "#/tools/jwt-decoder", icon: LockKeyhole, status: "ready" },
-  { id: "certificate-decoder", title: "Certificate", subtitle: "Decode PEM certificates", category: "encoders", route: "#/tools/certificate-decoder", icon: FileKey2, status: "ready" },
+  { id: "certificate-decoder", title: "Certificate", subtitle: "Retrieve and decode PEM certificates", category: "encoders", route: "#/tools/certificate-decoder", icon: FileKey2, status: "ready" },
   { id: "hash-generator", title: "Hash", subtitle: "Compute common digests", category: "generators", route: "#/tools/hash-generator", icon: Hash, status: "ready" },
   { id: "uuid-generator", title: "UUID", subtitle: "Generate unique identifiers", category: "generators", route: "#/tools/uuid-generator", icon: Fingerprint, status: "ready" },
   { id: "password-generator", title: "Password", subtitle: "Create secure passwords", category: "generators", route: "#/tools/password-generator", icon: KeyRound, status: "ready" },
