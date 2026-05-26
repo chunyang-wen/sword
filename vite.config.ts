@@ -61,6 +61,23 @@ function getCertificateChain(host: string, port: number) {
   });
 }
 
+const certificateApiMiddleware = async (req: any, res: any) => {
+  try {
+    const requestUrl = new URL(req.url ?? "", "http://localhost");
+    const target = requestUrl.searchParams.get("target") ?? "";
+    const fallbackPort = Number(requestUrl.searchParams.get("port") || 443);
+    const { host, port } = parseCertificateTarget(target, fallbackPort);
+    const certificates = await getCertificateChain(host, port);
+
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ host, port, certificates }));
+  } catch (error) {
+    res.statusCode = 400;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ error: error instanceof Error ? error.message : "Unable to retrieve certificate." }));
+  }
+};
+
 export default defineConfig({
   base: "./",
   plugins: [
@@ -68,22 +85,10 @@ export default defineConfig({
     {
       name: "certificate-api",
       configureServer(server) {
-        server.middlewares.use("/api/certificate", async (req, res) => {
-          try {
-            const requestUrl = new URL(req.url ?? "", "http://localhost");
-            const target = requestUrl.searchParams.get("target") ?? "";
-            const fallbackPort = Number(requestUrl.searchParams.get("port") || 443);
-            const { host, port } = parseCertificateTarget(target, fallbackPort);
-            const certificates = await getCertificateChain(host, port);
-
-            res.setHeader("content-type", "application/json");
-            res.end(JSON.stringify({ host, port, certificates }));
-          } catch (error) {
-            res.statusCode = 400;
-            res.setHeader("content-type", "application/json");
-            res.end(JSON.stringify({ error: error instanceof Error ? error.message : "Unable to retrieve certificate." }));
-          }
-        });
+        server.middlewares.use("/api/certificate", certificateApiMiddleware);
+      },
+      configurePreviewServer(server) {
+        server.middlewares.use("/api/certificate", certificateApiMiddleware);
       },
     },
   ],
