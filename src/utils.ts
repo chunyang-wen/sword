@@ -200,15 +200,20 @@ export function describeCron(input: string): Result<string> {
   }
 }
 
-export type CronFrequency = "minutes" | "hourly" | "daily" | "weekly" | "monthly";
+export type CronFrequency = "minutes" | "hourly" | "daily" | "weekly" | "monthly" | "yearly";
 
 export interface CronScheduleConfig {
   frequency: CronFrequency;
-  interval: number;
-  minute: number;
-  hour: number;
-  dayOfMonth: number;
-  dayOfWeek: number;
+  interval?: number;
+  minute?: number;
+  hour?: number;
+  dayOfMonth?: number;
+  daysOfWeek?: number[];
+  dayOfWeek?: number;
+  month?: number;
+  dailyType?: "everyDay" | "everyXDays" | "weekday";
+  hourlyType?: "everyHour" | "everyXHours";
+  monthlyType?: "everyMonth" | "everyXMonths";
 }
 
 function inRange(value: number, min: number, max: number, label: string): Result<number> {
@@ -219,29 +224,97 @@ function inRange(value: number, min: number, max: number, label: string): Result
 }
 
 export function generateCronExpression(config: CronScheduleConfig): Result<string> {
-  const minute = inRange(config.minute, 0, 59, "Minute");
-  if (!minute.ok) return minute;
-  const hour = inRange(config.hour, 0, 23, "Hour");
-  if (!hour.ok) return hour;
-  const dayOfMonth = inRange(config.dayOfMonth, 1, 31, "Day of month");
-  if (!dayOfMonth.ok) return dayOfMonth;
-  const dayOfWeek = inRange(config.dayOfWeek, 0, 6, "Day of week");
-  if (!dayOfWeek.ok) return dayOfWeek;
+  const minuteVal = config.minute !== undefined ? config.minute : 0;
+  const hourVal = config.hour !== undefined ? config.hour : 0;
+  const dayOfMonthVal = config.dayOfMonth !== undefined ? config.dayOfMonth : 1;
+  const monthVal = config.month !== undefined ? config.month : 1;
+  const intervalVal = config.interval !== undefined ? config.interval : 1;
+
+  let daysOfWeekVal = config.daysOfWeek;
+  if (!daysOfWeekVal && config.dayOfWeek !== undefined) {
+    daysOfWeekVal = [config.dayOfWeek];
+  }
+  if (!daysOfWeekVal) {
+    daysOfWeekVal = [1];
+  }
+
+  const hourlyType = config.hourlyType || "everyHour";
+  const dailyType = config.dailyType || "everyDay";
+  const monthlyType = config.monthlyType || "everyMonth";
 
   switch (config.frequency) {
     case "minutes": {
-      const interval = inRange(config.interval, 1, 59, "Minute interval");
+      const interval = inRange(intervalVal, 1, 59, "Minute interval");
       if (!interval.ok) return interval;
       return { ok: true, value: `*/${interval.value} * * * *` };
     }
-    case "hourly":
+    case "hourly": {
+      const minute = inRange(minuteVal, 0, 59, "Minute");
+      if (!minute.ok) return minute;
+      if (hourlyType === "everyXHours") {
+        const interval = inRange(intervalVal, 1, 23, "Hour interval");
+        if (!interval.ok) return interval;
+        return { ok: true, value: `${minute.value} */${interval.value} * * *` };
+      }
       return { ok: true, value: `${minute.value} * * * *` };
-    case "daily":
+    }
+    case "daily": {
+      const minute = inRange(minuteVal, 0, 59, "Minute");
+      if (!minute.ok) return minute;
+      const hour = inRange(hourVal, 0, 23, "Hour");
+      if (!hour.ok) return hour;
+
+      if (dailyType === "everyXDays") {
+        const interval = inRange(intervalVal, 1, 30, "Day interval");
+        if (!interval.ok) return interval;
+        return { ok: true, value: `${minute.value} ${hour.value} */${interval.value} * *` };
+      } else if (dailyType === "weekday") {
+        return { ok: true, value: `${minute.value} ${hour.value} * * 1-5` };
+      }
       return { ok: true, value: `${minute.value} ${hour.value} * * *` };
-    case "weekly":
-      return { ok: true, value: `${minute.value} ${hour.value} * * ${dayOfWeek.value}` };
-    case "monthly":
+    }
+    case "weekly": {
+      const minute = inRange(minuteVal, 0, 59, "Minute");
+      if (!minute.ok) return minute;
+      const hour = inRange(hourVal, 0, 23, "Hour");
+      if (!hour.ok) return hour;
+
+      if (daysOfWeekVal.length === 0) {
+        return { ok: false, error: "At least one weekday must be selected." };
+      }
+      for (const day of daysOfWeekVal) {
+        const d = inRange(day, 0, 6, "Day of week");
+        if (!d.ok) return d;
+      }
+      return { ok: true, value: `${minute.value} ${hour.value} * * ${daysOfWeekVal.join(",")}` };
+    }
+    case "monthly": {
+      const minute = inRange(minuteVal, 0, 59, "Minute");
+      if (!minute.ok) return minute;
+      const hour = inRange(hourVal, 0, 23, "Hour");
+      if (!hour.ok) return hour;
+      const dayOfMonth = inRange(dayOfMonthVal, 1, 31, "Day of month");
+      if (!dayOfMonth.ok) return dayOfMonth;
+
+      if (monthlyType === "everyXMonths") {
+        const interval = inRange(intervalVal, 1, 11, "Month interval");
+        if (!interval.ok) return interval;
+        return { ok: true, value: `${minute.value} ${hour.value} ${dayOfMonth.value} */${interval.value} *` };
+      }
       return { ok: true, value: `${minute.value} ${hour.value} ${dayOfMonth.value} * *` };
+    }
+    case "yearly": {
+      const minute = inRange(minuteVal, 0, 59, "Minute");
+      if (!minute.ok) return minute;
+      const hour = inRange(hourVal, 0, 23, "Hour");
+      if (!hour.ok) return hour;
+      const dayOfMonth = inRange(dayOfMonthVal, 1, 31, "Day of month");
+      if (!dayOfMonth.ok) return dayOfMonth;
+      const month = inRange(monthVal, 1, 12, "Month");
+      if (!month.ok) return month;
+
+      return { ok: true, value: `${minute.value} ${hour.value} ${dayOfMonth.value} ${month.value} *` };
+    }
     default:
       return { ok: false, error: "Choose a valid schedule frequency." };
   }
@@ -480,7 +553,12 @@ export function parseUrl(input: string): Result<string> {
   }
 }
 
-export function diffText(left: string, right: string): string {
+export interface DiffChunk {
+  type: "match" | "delete" | "insert";
+  value: string;
+}
+
+export function diffTextChunks(left: string, right: string): DiffChunk[] {
   const leftWords = left.match(/\S+|\s+/g) ?? [];
   const rightWords = right.match(/\S+|\s+/g) ?? [];
   const table = Array.from({ length: leftWords.length + 1 }, () => Array<number>(rightWords.length + 1).fill(0));
@@ -489,26 +567,41 @@ export function diffText(left: string, right: string): string {
       table[i][j] = leftWords[i] === rightWords[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
     }
   }
-  const chunks: string[] = [];
+  const chunks: DiffChunk[] = [];
   let i = 0;
   let j = 0;
   while (i < leftWords.length && j < rightWords.length) {
     if (leftWords[i] === rightWords[j]) {
-      chunks.push(`  ${leftWords[i]}`);
+      chunks.push({ type: "match", value: leftWords[i] });
       i += 1;
       j += 1;
     } else if (table[i + 1][j] >= table[i][j + 1]) {
-      chunks.push(`- ${leftWords[i]}`);
+      chunks.push({ type: "delete", value: leftWords[i] });
       i += 1;
     } else {
-      chunks.push(`+ ${rightWords[j]}`);
+      chunks.push({ type: "insert", value: rightWords[j] });
       j += 1;
     }
   }
-  while (i < leftWords.length) chunks.push(`- ${leftWords[i++]}`);
-  while (j < rightWords.length) chunks.push(`+ ${rightWords[j++]}`);
-  return chunks.join("");
+  while (i < leftWords.length) {
+    chunks.push({ type: "delete", value: leftWords[i++] });
+  }
+  while (j < rightWords.length) {
+    chunks.push({ type: "insert", value: rightWords[j++] });
+  }
+  return chunks;
 }
+
+export function diffText(left: string, right: string): string {
+  return diffTextChunks(left, right)
+    .map((chunk) => {
+      if (chunk.type === "match") return `  ${chunk.value}`;
+      if (chunk.type === "delete") return `- ${chunk.value}`;
+      return `+ ${chunk.value}`;
+    })
+    .join("");
+}
+
 
 export function certificateInfo(input: string): Result<string> {
   if (!input.trim()) return emptyOk("");

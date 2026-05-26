@@ -8,6 +8,7 @@ import {
   decodeJwt,
   describeCron,
   diffText,
+  diffTextChunks,
   formatJson,
   formatXml,
   generateCronExpression,
@@ -79,6 +80,14 @@ describe("text utilities", () => {
   it("diffs text", () => {
     expect(diffText("macOS", "Web")).toContain("+ Web");
   });
+
+  it("diffs text chunks", () => {
+    const chunks = diffTextChunks("macOS", "Web");
+    expect(chunks).toEqual([
+      { type: "delete", value: "macOS" },
+      { type: "insert", value: "Web" },
+    ]);
+  });
 });
 
 describe("formatters and encoders", () => {
@@ -95,6 +104,72 @@ describe("formatters and encoders", () => {
     const result = generateCronExpression({ frequency: "weekly", interval: 15, minute: 30, hour: 9, dayOfMonth: 1, dayOfWeek: 1 });
     expect(result).toEqual({ ok: true, value: "30 9 * * 1" });
     expect(result.ok && describeCron(result.value).ok).toBe(true);
+  });
+
+  it("generates general cron expressions for advanced cases", () => {
+    // 1. Hourly interval: Every 3 hours at minute 15
+    const hourlyInterval = generateCronExpression({
+      frequency: "hourly",
+      hourlyType: "everyXHours",
+      interval: 3,
+      minute: 15,
+    });
+    expect(hourlyInterval).toEqual({ ok: true, value: "15 */3 * * *" });
+    expect(hourlyInterval.ok && describeCron(hourlyInterval.value).ok).toBe(true);
+
+    // 2. Daily type: weekday (Mon-Fri) at 14:30
+    const dailyWeekday = generateCronExpression({
+      frequency: "daily",
+      dailyType: "weekday",
+      minute: 30,
+      hour: 14,
+    });
+    expect(dailyWeekday).toEqual({ ok: true, value: "30 14 * * 1-5" });
+    expect(dailyWeekday.ok && describeCron(dailyWeekday.value).ok).toBe(true);
+
+    // 3. Daily interval: Every 5 days at 06:15
+    const dailyInterval = generateCronExpression({
+      frequency: "daily",
+      dailyType: "everyXDays",
+      interval: 5,
+      minute: 15,
+      hour: 6,
+    });
+    expect(dailyInterval).toEqual({ ok: true, value: "15 6 */5 * *" });
+    expect(dailyInterval.ok && describeCron(dailyInterval.value).ok).toBe(true);
+
+    // 4. Weekly multi-day selection: Mon, Wed, Fri at 18:00
+    const weeklyMulti = generateCronExpression({
+      frequency: "weekly",
+      daysOfWeek: [1, 3, 5],
+      minute: 0,
+      hour: 18,
+    });
+    expect(weeklyMulti).toEqual({ ok: true, value: "0 18 * * 1,3,5" });
+    expect(weeklyMulti.ok && describeCron(weeklyMulti.value).ok).toBe(true);
+
+    // 5. Monthly interval: Every 2 months on the 10th at 00:00
+    const monthlyInterval = generateCronExpression({
+      frequency: "monthly",
+      monthlyType: "everyXMonths",
+      interval: 2,
+      dayOfMonth: 10,
+      minute: 0,
+      hour: 0,
+    });
+    expect(monthlyInterval).toEqual({ ok: true, value: "0 0 10 */2 *" });
+    expect(monthlyInterval.ok && describeCron(monthlyInterval.value).ok).toBe(true);
+
+    // 6. Yearly: Every year on October 15th at 12:30
+    const yearly = generateCronExpression({
+      frequency: "yearly",
+      month: 10,
+      dayOfMonth: 15,
+      hour: 12,
+      minute: 30,
+    });
+    expect(yearly).toEqual({ ok: true, value: "30 12 15 10 *" });
+    expect(yearly.ok && describeCron(yearly.value).ok).toBe(true);
   });
 
   it("encodes and decodes URL components", () => {

@@ -30,6 +30,8 @@ import {
   decodeJwt,
   describeCron,
   diffText,
+  diffTextChunks,
+  type DiffChunk,
   digests,
   dnsLookup,
   formatJson,
@@ -72,6 +74,38 @@ const cronFrequencyOptions: Array<{ value: CronFrequency; label: string }> = [
   { value: "daily", label: "Daily" },
   { value: "weekly", label: "Weekly" },
   { value: "monthly", label: "Monthly" },
+  { value: "yearly", label: "Yearly" },
+];
+
+const hourlyTypeOptions = [
+  { value: "everyHour", label: "Every hour" },
+  { value: "everyXHours", label: "Every N hours" },
+];
+
+const dailyTypeOptions = [
+  { value: "everyDay", label: "Every day" },
+  { value: "everyXDays", label: "Every N days" },
+  { value: "weekday", label: "Every weekday (Mon-Fri)" },
+];
+
+const monthlyTypeOptions = [
+  { value: "everyMonth", label: "Every month" },
+  { value: "everyXMonths", label: "Every N months" },
+];
+
+const monthOptions = [
+  { value: 1, label: "January" },
+  { value: 2, label: "February" },
+  { value: 3, label: "March" },
+  { value: 4, label: "April" },
+  { value: 5, label: "May" },
+  { value: 6, label: "June" },
+  { value: 7, label: "July" },
+  { value: 8, label: "August" },
+  { value: 9, label: "September" },
+  { value: 10, label: "October" },
+  { value: 11, label: "November" },
+  { value: 12, label: "December" },
 ];
 
 const weekdayOptions = [
@@ -669,8 +703,29 @@ function CronTool() {
   const [hour, setHour] = useState(9);
   const [dayOfMonth, setDayOfMonth] = useState(1);
   const [dayOfWeek, setDayOfWeek] = useState(1);
+  const [daysOfWeek, setDaysOfWeek] = useState<number[]>([1]);
+  const [month, setMonth] = useState(1);
+  const [dailyType, setDailyType] = useState<"everyDay" | "everyXDays" | "weekday">("everyDay");
+  const [hourlyType, setHourlyType] = useState<"everyHour" | "everyXHours">("everyHour");
+  const [monthlyType, setMonthlyType] = useState<"everyMonth" | "everyXMonths">("everyMonth");
 
-  const generated = useMemo(() => generateCronExpression({ frequency, interval, minute, hour, dayOfMonth, dayOfWeek }), [frequency, interval, minute, hour, dayOfMonth, dayOfWeek]);
+  const generated = useMemo(
+    () =>
+      generateCronExpression({
+        frequency,
+        interval,
+        minute,
+        hour,
+        dayOfMonth,
+        dayOfWeek,
+        daysOfWeek,
+        month,
+        dailyType,
+        hourlyType,
+        monthlyType,
+      }),
+    [frequency, interval, minute, hour, dayOfMonth, dayOfWeek, daysOfWeek, month, dailyType, hourlyType, monthlyType]
+  );
   const parseResult = useMemo(() => describeCron(cronInput), [cronInput]);
   const generatedDescription = generated.ok ? describeCron(generated.value) : generated;
   const generatedOutput = generated.ok
@@ -679,6 +734,16 @@ function CronTool() {
         value: `${generated.value}\n\n${generatedDescription.ok ? generatedDescription.value : generatedDescription.error}`,
       }
     : generated;
+
+  const weekdays = [
+    { label: "Su", value: 0 },
+    { label: "Mo", value: 1 },
+    { label: "Tu", value: 2 },
+    { label: "We", value: 3 },
+    { label: "Th", value: 4 },
+    { label: "Fr", value: 5 },
+    { label: "Sa", value: 6 },
+  ];
 
   return (
     <div className="cron-layout">
@@ -698,41 +763,156 @@ function CronTool() {
                 options={cronFrequencyOptions}
               />
             </label>
-            {frequency === "minutes" && (
+
+            {/* Hourly Type Options */}
+            {frequency === "hourly" && (
               <label className="field">
+                <span>Hourly Type</span>
+                <Select
+                  className="ant-control"
+                  size="large"
+                  value={hourlyType}
+                  onChange={(val) => setHourlyType(val as "everyHour" | "everyXHours")}
+                  options={hourlyTypeOptions}
+                />
+              </label>
+            )}
+            {frequency === "hourly" && hourlyType === "everyXHours" && (
+              <label className="field" style={{ flex: "1 1 100px", maxWidth: "120px" }}>
+                <span>Hour Interval</span>
+                <input type="number" min={1} max={23} value={interval} onChange={(event) => setInterval(Number(event.target.value))} />
+              </label>
+            )}
+
+            {/* Daily Type Options */}
+            {frequency === "daily" && (
+              <label className="field">
+                <span>Daily Type</span>
+                <Select
+                  className="ant-control"
+                  size="large"
+                  value={dailyType}
+                  onChange={(val) => setDailyType(val as "everyDay" | "everyXDays" | "weekday")}
+                  options={dailyTypeOptions}
+                />
+              </label>
+            )}
+            {frequency === "daily" && dailyType === "everyXDays" && (
+              <label className="field" style={{ flex: "1 1 100px", maxWidth: "120px" }}>
+                <span>Day Interval</span>
+                <input type="number" min={1} max={30} value={interval} onChange={(event) => setInterval(Number(event.target.value))} />
+              </label>
+            )}
+
+            {/* Monthly Type Options */}
+            {frequency === "monthly" && (
+              <label className="field">
+                <span>Monthly Type</span>
+                <Select
+                  className="ant-control"
+                  size="large"
+                  value={monthlyType}
+                  onChange={(val) => setMonthlyType(val as "everyMonth" | "everyXMonths")}
+                  options={monthlyTypeOptions}
+                />
+              </label>
+            )}
+            {frequency === "monthly" && monthlyType === "everyXMonths" && (
+              <label className="field" style={{ flex: "1 1 100px", maxWidth: "120px" }}>
+                <span>Month Interval</span>
+                <input type="number" min={1} max={11} value={interval} onChange={(event) => setInterval(Number(event.target.value))} />
+              </label>
+            )}
+
+            {/* Yearly Options */}
+            {frequency === "yearly" && (
+              <label className="field">
+                <span>Month</span>
+                <Select
+                  className="ant-control"
+                  size="large"
+                  value={month}
+                  onChange={setMonth}
+                  options={monthOptions}
+                />
+              </label>
+            )}
+
+            {/* Minutes Interval */}
+            {frequency === "minutes" && (
+              <label className="field" style={{ flex: "1 1 100px", maxWidth: "120px" }}>
                 <span>Interval</span>
                 <input type="number" min={1} max={59} value={interval} onChange={(event) => setInterval(Number(event.target.value))} />
               </label>
             )}
+
+            {/* Time Controls */}
             {frequency !== "minutes" && (
-              <label className="field">
+              <label className="field" style={{ flex: "1 1 100px", maxWidth: "120px" }}>
                 <span>Minute</span>
                 <input type="number" min={0} max={59} value={minute} onChange={(event) => setMinute(Number(event.target.value))} />
               </label>
             )}
-            {["daily", "weekly", "monthly"].includes(frequency) && (
-              <label className="field">
+            {["daily", "weekly", "monthly", "yearly"].includes(frequency) && dailyType !== "weekday" && (
+              <label className="field" style={{ flex: "1 1 100px", maxWidth: "120px" }}>
                 <span>Hour</span>
                 <input type="number" min={0} max={23} value={hour} onChange={(event) => setHour(Number(event.target.value))} />
               </label>
             )}
-            {frequency === "weekly" && (
-              <label className="field">
-                <span>Weekday</span>
-                <Select
-                  className="ant-control"
-                  size="large"
-                  value={dayOfWeek}
-                  onChange={setDayOfWeek}
-                  options={weekdayOptions}
-                />
-              </label>
-            )}
             {frequency === "monthly" && (
-              <label className="field">
+              <label className="field" style={{ flex: "1 1 100px", maxWidth: "120px" }}>
                 <span>Day</span>
                 <input type="number" min={1} max={31} value={dayOfMonth} onChange={(event) => setDayOfMonth(Number(event.target.value))} />
               </label>
+            )}
+            {frequency === "yearly" && (
+              <label className="field" style={{ flex: "1 1 100px", maxWidth: "120px" }}>
+                <span>Day</span>
+                <input type="number" min={1} max={31} value={dayOfMonth} onChange={(event) => setDayOfMonth(Number(event.target.value))} />
+              </label>
+            )}
+
+            {/* Weekly Days Multi-Selector */}
+            {frequency === "weekly" && (
+              <div className="field" style={{ flex: "2 1 300px" }}>
+                <span>Weekdays</span>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "4px" }}>
+                  {weekdays.map((day) => {
+                    const active = daysOfWeek.includes(day.value);
+                    return (
+                      <button
+                        key={day.value}
+                        type="button"
+                        style={{
+                          flex: "1 1 36px",
+                          height: "38px",
+                          borderRadius: "6px",
+                          border: active ? "1px solid var(--primary)" : "1px solid var(--border)",
+                          backgroundColor: active ? "var(--primary-tonal)" : "var(--surface-code)",
+                          color: active ? "var(--primary)" : "var(--muted)",
+                          cursor: "pointer",
+                          fontWeight: active ? "700" : "500",
+                          transition: "all 0.16s ease",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                        onClick={() => {
+                          if (active) {
+                            if (daysOfWeek.length > 1) {
+                              setDaysOfWeek(daysOfWeek.filter((d) => d !== day.value));
+                            }
+                          } else {
+                            setDaysOfWeek([...daysOfWeek, day.value].sort((a, b) => a - b));
+                          }
+                        }}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
           <button className="primary-action flush" disabled={!generated.ok} onClick={() => generated.ok && setCronInput(generated.value)}>Use expression</button>
@@ -895,10 +1075,53 @@ function RegexTool() {
   );
 }
 
+function DiffOutput({ left, right, chunks }: { left: string; right: string; chunks: DiffChunk[] }) {
+  const diffString = useMemo(() => diffText(left, right), [left, right]);
+  return (
+    <div className="output-block">
+      <div className="output-bar">
+        <span>Difference</span>
+        <CopyButton value={diffString} />
+      </div>
+      <pre className="diff-output-pre">
+        {chunks.map((chunk, index) => {
+          if (chunk.type === "delete") {
+            return (
+              <span key={index} className="diff-chunk-delete">
+                {chunk.value}
+              </span>
+            );
+          }
+          if (chunk.type === "insert") {
+            return (
+              <span key={index} className="diff-chunk-insert">
+                {chunk.value}
+              </span>
+            );
+          }
+          return (
+            <span key={index} className="diff-chunk-match">
+              {chunk.value}
+            </span>
+          );
+        })}
+      </pre>
+    </div>
+  );
+}
+
 function TextDiffTool() {
   const [left, setLeft] = useState("DevUtils for macOS");
   const [right, setRight] = useState("DevUtils for Web");
-  return <div className="tool-grid three"><TextArea label="Left" value={left} setValue={setLeft} /><TextArea label="Right" value={right} setValue={setRight} /><Output result={{ ok: true, value: diffText(left, right) }} /></div>;
+  const chunks = useMemo(() => diffTextChunks(left, right), [left, right]);
+  
+  return (
+    <div className="tool-grid three">
+      <TextArea label="Left" value={left} setValue={setLeft} />
+      <TextArea label="Right" value={right} setValue={setRight} />
+      <DiffOutput left={left} right={right} chunks={chunks} />
+    </div>
+  );
 }
 
 function HashTool() {

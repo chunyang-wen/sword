@@ -1107,3 +1107,34 @@ input[type="checkbox"]:focus-visible { outline: 0; box-shadow: var(--focus); }
   .options-panel,
   .controls-panel { padding: 14px; }
 }
+
+/* Text Diff Custom Inline Highlights */
+.diff-output-pre {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+}
+
+.diff-chunk-delete {
+  background-color: var(--danger-tonal);
+  color: var(--danger);
+  text-decoration: line-through;
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin: 0 1px;
+  display: inline-block;
+}
+
+.diff-chunk-insert {
+  background-color: var(--primary-tonal);
+  color: var(--primary-strong);
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin: 0 1px;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.diff-chunk-match {
+  color: var(--text);
+}
+
