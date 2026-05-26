@@ -723,7 +723,7 @@ export async function retrieveServerCertificate(target: string, port: number): P
   if (!target.trim()) return { ok: false, error: "Enter a hostname or HTTPS URL." };
 
   const isLocal = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-  const baseUrl = isLocal ? "" : "https://deepfish.pythonanywhere.com";
+  const baseUrl = isLocal ? "" : "https://sword-api.vercel.app";
 
   const response = await fetch(`${baseUrl}/api/certificate?target=${encodeURIComponent(target.trim())}&port=${encodeURIComponent(String(port))}`);
   const payload = await response.json().catch(() => ({})) as { certificates?: string[]; error?: string };

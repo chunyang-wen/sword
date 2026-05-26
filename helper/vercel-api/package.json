@@ -1,0 +1,14 @@
+{
+  "name": "devutils-certificate-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal certificate retrieval backend for Vercel Serverless Functions",
+  "scripts": {
+    "vercel-dev": "vercel dev"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vercel/node": "^3.2.24",
+    "typescript": "^5.8.0"
+  }
+}
