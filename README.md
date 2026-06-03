@@ -20,10 +20,16 @@ A modern, fast, and local-first browser version of the **DevUtils macOS develope
 ## 📸 Snapshots
 
 ### 🏠 Main Dashboard
-![Main Dashboard](assets/snapshot-main.png)
+![Main Dashboard](assets/main.png)
 
-### 🧩 JSON Formatter Tool
-![JSON Formatter](assets/snapshot-json.png)
+### ⏱️ Cron Job Parser
+![Cron Job Parser](assets/cron-job.png)
+
+### 🌐 DNS Lookup
+![DNS Lookup](assets/dns.png)
+
+### 🔑 SSH Key Generator
+![SSH Key Generator](assets/ssh-key.png)
 
 ---
 
