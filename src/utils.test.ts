@@ -1,20 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
+  asciiToHex,
+  backslashEscape,
+  backslashUnescape,
   base64Decode,
   base64Encode,
+  colorInfo,
   convertBase,
   convertUnit,
+  csvToJson,
   dateFields,
   decodeJwt,
   describeCron,
   diffText,
   diffTextChunks,
+  formatWebCode,
   formatJson,
   formatXml,
   generateCronExpression,
+  hexToAscii,
+  htmlEntityDecode,
+  htmlEntityEncode,
+  inspectString,
+  jsonToCsv,
   jsonToYaml,
+  markdownToHtml,
   parseUrl,
   password,
+  randomStrings,
   regexInspect,
   textToolkit,
   urlDecode,
@@ -39,6 +52,18 @@ describe("yaml conversion", () => {
     expect(yaml.ok).toBe(true);
     expect(yaml.ok && yaml.value).toContain("name: DevUtils");
     expect(yaml.ok && yamlToJson(yaml.value).ok).toBe(true);
+  });
+});
+
+describe("csv conversion", () => {
+  it("converts JSON arrays to CSV", () => {
+    const result = jsonToCsv('[{"name":"Ada","role":"engineer"},{"name":"Linus","role":"maintainer"}]');
+    expect(result).toEqual({ ok: true, value: "name,role\nAda,engineer\nLinus,maintainer" });
+  });
+
+  it("parses quoted CSV into JSON", () => {
+    const result = csvToJson('name,note\nAda,"hello, world"');
+    expect(result.ok && result.value).toContain('"note": "hello, world"');
   });
 });
 
@@ -178,6 +203,24 @@ describe("formatters and encoders", () => {
     expect(urlDecode(encoded)).toEqual({ ok: true, value: "a b" });
   });
 
+  it("encodes and decodes HTML entities", () => {
+    const encoded = htmlEntityEncode('<span title="A&B">');
+    expect(encoded).toBe("&lt;span title=&quot;A&amp;B&quot;&gt;");
+    expect(htmlEntityDecode(encoded)).toEqual({ ok: true, value: '<span title="A&B">' });
+  });
+
+  it("escapes and unescapes backslash sequences", () => {
+    const escaped = backslashEscape('line\n"quoted"');
+    expect(escaped).toBe('line\\n\\"quoted\\"');
+    expect(backslashUnescape(escaped)).toEqual({ ok: true, value: 'line\n"quoted"' });
+  });
+
+  it("converts ASCII to hex and back", () => {
+    const hex = asciiToHex("Dev");
+    expect(hex).toBe("44 65 76");
+    expect(hexToAscii(hex)).toEqual({ ok: true, value: "Dev" });
+  });
+
   it("encodes and decodes base64", () => {
     const encoded = base64Encode("Hello");
     expect(base64Decode(encoded)).toEqual({ ok: true, value: "Hello" });
@@ -198,6 +241,35 @@ describe("formatters and encoders", () => {
   it("decodes JWT payloads", () => {
     const result = decodeJwt("eyJhbGciOiJub25lIn0.eyJzdWIiOiIxMjMifQ.");
     expect(result.ok && result.value).toContain('"sub": "123"');
+  });
+});
+
+describe("web utility additions", () => {
+  it("inspects string metrics", () => {
+    expect(inspectString("a\nb")).toContain("Lines: 2");
+  });
+
+  it("renders basic markdown to HTML", () => {
+    expect(markdownToHtml("# Title\n\n**bold**")).toContain("<strong>bold</strong>");
+  });
+
+  it("formats web code", () => {
+    const result = formatWebCode("<main><h1>x</h1></main>", "html", "beautify");
+    expect(result.ok && result.value).toContain("\n");
+  });
+
+  it("converts colors", () => {
+    const result = colorInfo("#45f0d1");
+    expect(result.ok && result.value.output).toContain("RGB: rgb(69, 240, 209)");
+  });
+
+  it("generates random strings from an alphabet", () => {
+    const result = randomStrings(12, 3, "ab");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.split("\n")).toHaveLength(3);
+      expect(result.value).toMatch(/^[ab\n]+$/);
+    }
   });
 });
 

@@ -33,6 +33,79 @@ export function yamlToJson(input: string): Result<string> {
   }
 }
 
+export function jsonToCsv(input: string): Result<string> {
+  const formatted = formatJson(input);
+  if (!formatted.ok) return formatted;
+  if (!formatted.value) return emptyOk("");
+  const parsed = JSON.parse(formatted.value);
+  const rows = Array.isArray(parsed) ? parsed : [parsed];
+  if (!rows.every((row) => row && typeof row === "object" && !Array.isArray(row))) {
+    return { ok: false, error: "JSON must be an object or an array of objects." };
+  }
+
+  const headers = [...new Set(rows.flatMap((row) => Object.keys(row as Record<string, unknown>)))];
+  const escapeCell = (value: unknown) => {
+    const raw = value === null || value === undefined
+      ? ""
+      : typeof value === "object"
+        ? JSON.stringify(value)
+        : String(value);
+    return /[",\n\r]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
+  };
+
+  return {
+    ok: true,
+    value: [
+      headers.map(escapeCell).join(","),
+      ...rows.map((row) => headers.map((header) => escapeCell((row as Record<string, unknown>)[header])).join(",")),
+    ].join("\n"),
+  };
+}
+
+export function csvToJson(input: string): Result<string> {
+  if (!input.trim()) return emptyOk("");
+  const rows: string[][] = [];
+  let field = "";
+  let row: string[] = [];
+  let quoted = false;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    const next = input[index + 1];
+    if (quoted) {
+      if (char === '"' && next === '"') {
+        field += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        field += char;
+      }
+    } else if (char === '"') {
+      quoted = true;
+    } else if (char === ",") {
+      row.push(field);
+      field = "";
+    } else if (char === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else if (char !== "\r") {
+      field += char;
+    }
+  }
+
+  if (quoted) return { ok: false, error: "CSV has an unterminated quoted field." };
+  row.push(field);
+  rows.push(row);
+  const [headers, ...dataRows] = rows.filter((cells) => cells.some((cell) => cell.length > 0));
+  if (!headers?.length) return emptyOk("[]");
+
+  const objects = dataRows.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
+  return { ok: true, value: JSON.stringify(objects, null, 2) };
+}
+
 export function convertBase(value: string, fromBase: number): Result<Record<string, string>> {
   const cleaned = value.trim().replace(/[,_\s]/g, "").replace(/^0[xob]/i, "");
   if (!cleaned) return emptyOk({ decimal: "", hexadecimal: "", octal: "", binary: "" });
@@ -332,6 +405,94 @@ export function urlDecode(input: string): Result<string> {
   }
 }
 
+const entityMap: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+const namedEntities: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: "\u00a0",
+};
+
+export function htmlEntityEncode(input: string): string {
+  return input.replace(/[&<>"']/g, (char) => entityMap[char]);
+}
+
+export function htmlEntityDecode(input: string): Result<string> {
+  try {
+    return {
+      ok: true,
+      value: input.replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (match, entity: string) => {
+        if (entity.startsWith("#x")) return String.fromCodePoint(Number.parseInt(entity.slice(2), 16));
+        if (entity.startsWith("#")) return String.fromCodePoint(Number.parseInt(entity.slice(1), 10));
+        return namedEntities[entity.toLowerCase()] ?? match;
+      }),
+    };
+  } catch {
+    return { ok: false, error: "Invalid HTML entity sequence." };
+  }
+}
+
+export function backslashEscape(input: string): string {
+  return input
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t")
+    .replace(/\f/g, "\\f")
+    .replace(/\v/g, "\\v")
+    .replace(/\0/g, "\\0")
+    .replace(/"/g, '\\"');
+}
+
+export function backslashUnescape(input: string): Result<string> {
+  try {
+    return {
+      ok: true,
+      value: input.replace(/\\(u\{[\da-f]+\}|u[\da-f]{4}|x[\da-f]{2}|n|r|t|f|v|0|\\|"|')/gi, (_, sequence: string) => {
+        if (sequence === "n") return "\n";
+        if (sequence === "r") return "\r";
+        if (sequence === "t") return "\t";
+        if (sequence === "f") return "\f";
+        if (sequence === "v") return "\v";
+        if (sequence === "0") return "\0";
+        if (sequence === "\\" || sequence === '"' || sequence === "'") return sequence;
+        if (sequence.startsWith("x")) return String.fromCodePoint(Number.parseInt(sequence.slice(1), 16));
+        if (sequence.startsWith("u{")) return String.fromCodePoint(Number.parseInt(sequence.slice(2, -1), 16));
+        return String.fromCodePoint(Number.parseInt(sequence.slice(1), 16));
+      }),
+    };
+  } catch {
+    return { ok: false, error: "Invalid backslash escape sequence." };
+  }
+}
+
+export function asciiToHex(input: string): string {
+  return [...new TextEncoder().encode(input)].map((byte) => byte.toString(16).padStart(2, "0").toUpperCase()).join(" ");
+}
+
+export function hexToAscii(input: string): Result<string> {
+  const compact = input.replace(/(?:0x|\\x)/gi, "").replace(/[\s,;:_-]/g, "");
+  if (!compact) return emptyOk("");
+  if (compact.length % 2 !== 0 || /[^\da-f]/i.test(compact)) {
+    return { ok: false, error: "Enter an even-length hexadecimal byte string." };
+  }
+  const bytes = new Uint8Array(compact.match(/../g)!.map((pair) => Number.parseInt(pair, 16)));
+  try {
+    return { ok: true, value: new TextDecoder("utf-8", { fatal: true }).decode(bytes) };
+  } catch {
+    return { ok: false, error: "Hex bytes are not valid UTF-8 text." };
+  }
+}
+
 export function base64Encode(input: string, altchars?: string): string {
   let encoded = btoa(unescape(encodeURIComponent(input)));
   if (altchars && altchars.length === 2) {
@@ -388,6 +549,19 @@ export function password(length: number, sets: { lower: boolean; upper: boolean;
   const bytes = new Uint32Array(Math.max(4, Math.min(length, 256)));
   crypto.getRandomValues(bytes);
   return { ok: true, value: [...bytes].map((byte) => chars[byte % chars.length]).join("") };
+}
+
+export function randomStrings(length: number, count: number, alphabet: string): Result<string> {
+  const chars = [...alphabet];
+  if (!chars.length) return { ok: false, error: "Enter at least one character in the alphabet." };
+  const safeLength = Math.max(1, Math.min(length, 512));
+  const safeCount = Math.max(1, Math.min(count, 200));
+  const rows = Array.from({ length: safeCount }, () => {
+    const bytes = new Uint32Array(safeLength);
+    crypto.getRandomValues(bytes);
+    return [...bytes].map((byte) => chars[byte % chars.length]).join("");
+  });
+  return { ok: true, value: rows.join("\n") };
 }
 
 function writeStringBytes(str: string): Uint8Array {
@@ -556,6 +730,209 @@ export async function sshKeyPair(): Promise<Result<string>> {
 const lorem = "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua";
 export function loremIpsum(paragraphs: number): string {
   return Array.from({ length: Math.min(Math.max(paragraphs, 1), 20) }, (_, i) => `${lorem}${i % 2 ? " Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat." : "."}`).join("\n\n");
+}
+
+export function inspectString(input: string): string {
+  const encoder = new TextEncoder();
+  const lines = input.length ? input.split(/\r\n|\r|\n/).length : 0;
+  const codePoints = [...input];
+  const visible = input
+    .replace(/ /g, "·")
+    .replace(/\t/g, "→\t")
+    .replace(/\r/g, "␍")
+    .replace(/\n/g, "␊\n");
+  const codePointRows = codePoints.slice(0, 200).map((char, index) => {
+    const value = char.codePointAt(0) ?? 0;
+    return `${String(index + 1).padStart(3, " ")}  U+${value.toString(16).toUpperCase().padStart(4, "0")}  ${JSON.stringify(char)}`;
+  });
+
+  return [
+    `Characters: ${input.length}`,
+    `Code points: ${codePoints.length}`,
+    `UTF-8 bytes: ${encoder.encode(input).length}`,
+    `Lines: ${lines}`,
+    `Words: ${input.trim() ? input.trim().split(/\s+/).length : 0}`,
+    "",
+    "Visible whitespace:",
+    visible,
+    "",
+    "Code points:",
+    codePointRows.join("\n") || "(none)",
+    codePoints.length > 200 ? `\n... ${codePoints.length - 200} more` : "",
+  ].filter(Boolean).join("\n");
+}
+
+function escapeHtml(input: string): string {
+  return input.replace(/[&<>"']/g, (char) => entityMap[char]);
+}
+
+export function markdownToHtml(input: string): string {
+  const lines = input.replace(/\r\n?/g, "\n").split("\n");
+  const html: string[] = [];
+  let listOpen = false;
+  let paragraph: string[] = [];
+  const inline = (text: string) => escapeHtml(text)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      html.push(`<p>${inline(paragraph.join(" "))}</p>`);
+      paragraph = [];
+    }
+  };
+  const closeList = () => {
+    if (listOpen) {
+      html.push("</ul>");
+      listOpen = false;
+    }
+  };
+
+  for (const line of lines) {
+    const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+    const listItem = /^[-*]\s+(.+)$/.exec(line);
+    if (!line.trim()) {
+      flushParagraph();
+      closeList();
+    } else if (heading) {
+      flushParagraph();
+      closeList();
+      html.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`);
+    } else if (listItem) {
+      flushParagraph();
+      if (!listOpen) {
+        html.push("<ul>");
+        listOpen = true;
+      }
+      html.push(`<li>${inline(listItem[1])}</li>`);
+    } else {
+      closeList();
+      paragraph.push(line.trim());
+    }
+  }
+
+  flushParagraph();
+  closeList();
+  return html.join("\n");
+}
+
+export type WebFormatLanguage = "html" | "css" | "javascript";
+export type WebFormatMode = "beautify" | "minify";
+
+function indentMarkup(input: string): string {
+  let depth = 0;
+  return input
+    .replace(/>\s*</g, ">\n<")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      if (/^<\//.test(line)) depth = Math.max(0, depth - 1);
+      const output = `${"  ".repeat(depth)}${line}`;
+      if (/^<[^!?/][^>]*[^/]?>$/.test(line) && !/<\/[^>]+>$/.test(line) && !/^(<meta|<link|<br|<hr|<img|<input)\b/i.test(line)) {
+        depth += 1;
+      }
+      return output;
+    })
+    .join("\n");
+}
+
+function indentCode(input: string): string {
+  let depth = 0;
+  return input
+    .replace(/([{};])/g, "$1\n")
+    .replace(/\n\s*\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      if (line.startsWith("}")) depth = Math.max(0, depth - 1);
+      const output = `${"  ".repeat(depth)}${line}`;
+      if (line.endsWith("{")) depth += 1;
+      return output;
+    })
+    .join("\n");
+}
+
+export function formatWebCode(input: string, language: WebFormatLanguage, mode: WebFormatMode): Result<string> {
+  if (!input.trim()) return emptyOk("");
+  if (mode === "minify") {
+    const withoutComments = language === "html"
+      ? input.replace(/<!--[\s\S]*?-->/g, "")
+      : input.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n\r]*/g, "");
+    return { ok: true, value: withoutComments.replace(/\s+/g, " ").replace(/\s*([{}:;,>])\s*/g, "$1").replace(/\s*(<)\s*/g, "$1").trim() };
+  }
+  return { ok: true, value: language === "html" ? indentMarkup(input) : indentCode(input) };
+}
+
+export function colorInfo(input: string): Result<{ css: string; output: string }> {
+  const trimmed = input.trim();
+  let rgb: [number, number, number] | null = null;
+  const hex = /^#?([\da-f]{3}|[\da-f]{6})$/i.exec(trimmed);
+  const rgbMatch = /^rgba?\((\d{1,3})[,\s]+(\d{1,3})[,\s]+(\d{1,3})/i.exec(trimmed);
+  const hslMatch = /^hsla?\(([-\d.]+)(?:deg)?[,\s]+([-\d.]+)%[,\s]+([-\d.]+)%/i.exec(trimmed);
+
+  if (hex) {
+    const full = hex[1].length === 3 ? [...hex[1]].map((char) => char + char).join("") : hex[1];
+    rgb = [0, 2, 4].map((offset) => Number.parseInt(full.slice(offset, offset + 2), 16)) as [number, number, number];
+  } else if (rgbMatch) {
+    rgb = [Number(rgbMatch[1]), Number(rgbMatch[2]), Number(rgbMatch[3])];
+  } else if (hslMatch) {
+    rgb = hslToRgb(Number(hslMatch[1]), Number(hslMatch[2]), Number(hslMatch[3]));
+  }
+
+  if (!rgb || rgb.some((value) => value < 0 || value > 255)) return { ok: false, error: "Enter a HEX, RGB, or HSL color." };
+  const [r, g, b] = rgb;
+  const hexValue = `#${[r, g, b].map((value) => Math.round(value).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+  const [h, s, l] = rgbToHsl(r, g, b);
+  return {
+    ok: true,
+    value: {
+      css: hexValue,
+      output: [
+        `HEX: ${hexValue}`,
+        `RGB: rgb(${r}, ${g}, ${b})`,
+        `HSL: hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`,
+      ].join("\n"),
+    },
+  };
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  h = (((h % 360) + 360) % 360) / 360;
+  s /= 100;
+  l /= 100;
+  const hue = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  if (s === 0) return [l, l, l].map((value) => Math.round(value * 255)) as [number, number, number];
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [hue(p, q, h + 1 / 3), hue(p, q, h), hue(p, q, h - 1 / 3)].map((value) => Math.round(value * 255)) as [number, number, number];
+}
+
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  const l = (max + min) / 2;
+  const d = max - min;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  if (d !== 0) {
+    if (max === r) h = 60 * (((g - b) / d) % 6);
+    else if (max === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  return [h < 0 ? h + 360 : h, s * 100, l * 100];
 }
 
 export function parseUrl(input: string): Result<string> {

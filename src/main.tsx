@@ -27,11 +27,16 @@ import "antd/dist/reset.css";
 import "./styles.css";
 import { categories, toolById, tools, type ToolCategoryId, type ToolDefinition } from "./tools";
 import {
+  asciiToHex,
+  backslashEscape,
+  backslashUnescape,
   base64Decode,
   base64Encode,
   certificateInfo,
+  colorInfo,
   convertBase,
   convertUnit,
+  csvToJson,
   dateFields,
   decodeJwt,
   describeCron,
@@ -40,14 +45,22 @@ import {
   type DiffChunk,
   digests,
   dnsLookup,
+  formatWebCode,
   formatJson,
   formatXml,
   generateCronExpression,
+  hexToAscii,
+  htmlEntityDecode,
+  htmlEntityEncode,
   httpStatuses,
+  inspectString,
+  jsonToCsv,
   jsonToYaml,
   loremIpsum,
+  markdownToHtml,
   parseUrl,
   password,
+  randomStrings,
   regexInspect,
   retrieveServerCertificate,
   safeSql,
@@ -59,6 +72,8 @@ import {
   urlEncode,
   uuidList,
   yamlToJson,
+  type WebFormatLanguage,
+  type WebFormatMode,
   type UnitCategory,
   type CronFrequency,
   type Result,
@@ -324,19 +339,29 @@ function ToolSwitch({ id }: { id: string }) {
     case "date-converter": return <DateTool />;
     case "unit-converter": return <UnitTool />;
     case "text-toolkit": return <TextToolkitTool />;
+    case "string-inspector": return <StringInspectorTool />;
     case "text-diff": return <TextDiffTool />;
     case "regex-matching": return <RegexTool />;
     case "json-formatter": return <SingleTransform sample='{"hello":"world","items":[1,2]}' transform={formatJson} />;
+    case "json-csv": return <DualTransform titleA="JSON" titleB="CSV" sample='[{"name":"Ada","role":"engineer"},{"name":"Linus","role":"maintainer"}]' toB={jsonToCsv} toA={csvToJson} />;
     case "sql-formatter": return <SingleTransform sample="select id, name from users where active = true order by created_at desc" transform={safeSql} />;
     case "xml-formatter": return <SingleTransform sample={'<root><item id="1">DevUtils</item></root>'} transform={formatXml} />;
+    case "web-formatter": return <WebFormatterTool />;
+    case "markdown-preview": return <MarkdownPreviewTool />;
+    case "html-preview": return <HtmlPreviewTool />;
     case "cron-job-parser": return <CronTool />;
     case "qr-coder": return <QrTool />;
     case "url-coder": return <EncodeDecodeTool encode={urlEncode} decode={urlDecode} sample="https://example.com/search?q=dev utils" />;
+    case "html-entities": return <EncodeDecodeTool encode={htmlEntityEncode} decode={htmlEntityDecode} sample={'<button aria-label="Save & close">Save</button>'} />;
+    case "backslash-escape": return <EncodeDecodeTool encode={backslashEscape} decode={backslashUnescape} sample={'line one\n"quoted" path: C:\\tmp'} />;
+    case "hex-ascii": return <EncodeDecodeTool encode={asciiToHex} decode={hexToAscii} sample="DevUtils Web" />;
     case "base64-coder": return <Base64Tool />;
     case "jwt-decoder": return <SingleTransform sample={jwtSample} transform={decodeJwt} />;
     case "certificate-decoder": return <CertificateTool />;
+    case "color-converter": return <ColorConverterTool />;
     case "hash-generator": return <HashTool />;
     case "uuid-generator": return <UuidTool />;
+    case "random-string-generator": return <RandomStringTool />;
     case "password-generator": return <PasswordTool />;
     case "ssh-key-generator": return <SshKeyTool />;
     case "lorem-ipsum-generator": return <LoremTool />;
@@ -1109,6 +1134,173 @@ function TextToolkitTool() {
         <TextArea label="Input" value={input} setValue={setInput} />
         <Output result={{ ok: true, value }} />
       </div>
+    </div>
+  );
+}
+
+function StringInspectorTool() {
+  const [input, setInput] = useState("DevUtils Web\nTabs\tspaces  emoji: ⚙️");
+  return (
+    <div className="tool-grid two">
+      <TextArea label="String" value={input} setValue={setInput} />
+      <Output result={{ ok: true, value: inspectString(input) }} label="Inspection" />
+    </div>
+  );
+}
+
+function WebFormatterTool() {
+  const [language, setLanguage] = useState<WebFormatLanguage>("html");
+  const [mode, setMode] = useState<WebFormatMode>("beautify");
+  const [input, setInput] = useState('<main><h1>DevUtils</h1><button class="save">Save</button></main>');
+  const result = useMemo(() => formatWebCode(input, language, mode), [input, language, mode]);
+
+  return (
+    <div>
+      <div className="options-panel horizontal-wrap">
+        <div className="option-item">
+          <span className="option-label">Language</span>
+          <Segmented
+            className="ant-control compact-segmented"
+            block
+            size="large"
+            value={language}
+            onChange={(value) => setLanguage(value as WebFormatLanguage)}
+            options={[
+              { value: "html", label: "HTML" },
+              { value: "css", label: "CSS" },
+              { value: "javascript", label: "JS" },
+            ]}
+          />
+        </div>
+        <div className="option-item">
+          <span className="option-label">Mode</span>
+          <Segmented
+            className="ant-control compact-segmented"
+            block
+            size="large"
+            value={mode}
+            onChange={(value) => setMode(value as WebFormatMode)}
+            options={[
+              { value: "beautify", label: "Beautify" },
+              { value: "minify", label: "Minify" },
+            ]}
+          />
+        </div>
+      </div>
+      <div className="tool-grid two">
+        <TextArea label="Input" value={input} setValue={setInput} />
+        <Output result={result} />
+      </div>
+    </div>
+  );
+}
+
+function MarkdownPreviewTool() {
+  const [input, setInput] = useState("# DevUtils Web\n\nRender **Markdown** locally with `code`, links, and lists.\n\n- Format notes\n- Preview README snippets");
+  const html = useMemo(() => markdownToHtml(input), [input]);
+  return (
+    <div className="tool-grid two">
+      <TextArea label="Markdown" value={input} setValue={setInput} />
+      <div className="preview-stack">
+        <div className="output-block">
+          <div className="output-bar">
+            <span>Preview</span>
+          </div>
+          <div className="rendered-preview markdown-preview" dangerouslySetInnerHTML={{ __html: html }} />
+        </div>
+        <Output label="HTML" result={{ ok: true, value: html }} />
+      </div>
+    </div>
+  );
+}
+
+function HtmlPreviewTool() {
+  const [input, setInput] = useState('<!doctype html>\n<html>\n  <body>\n    <h1>DevUtils Web</h1>\n    <button>Preview</button>\n  </body>\n</html>');
+  return (
+    <div className="tool-grid two">
+      <TextArea label="HTML" value={input} setValue={setInput} />
+      <div className="output-block">
+        <div className="output-bar">
+          <span>Sandboxed preview</span>
+        </div>
+        <iframe className="html-preview-frame" sandbox="" srcDoc={input} title="HTML preview" />
+      </div>
+    </div>
+  );
+}
+
+function ColorConverterTool() {
+  const [input, setInput] = useState("#45f0d1");
+  const result = useMemo(() => colorInfo(input), [input]);
+  return (
+    <div className="tool-grid two">
+      <div className="options-block">
+        <div className="field-header">
+          <span>Color</span>
+        </div>
+        <div className="options-container">
+          <label className="field">
+            <span>HEX, RGB, or HSL</span>
+            <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="#45f0d1, rgb(69,240,209), hsl(170,86%,61%)" />
+          </label>
+          <div className="color-preview" style={{ background: result.ok ? result.value.css : "transparent" }} />
+        </div>
+      </div>
+      <Output result={result.ok ? { ok: true, value: result.value.output } : result} />
+    </div>
+  );
+}
+
+function RandomStringTool() {
+  const alphabets = {
+    alphanumeric: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+    url: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",
+    hex: "0123456789abcdef",
+    numeric: "0123456789",
+  };
+  const [length, setLength] = useState(32);
+  const [count, setCount] = useState(5);
+  const [preset, setPreset] = useState<keyof typeof alphabets>("url");
+  const [customAlphabet, setCustomAlphabet] = useState("");
+  const [nonce, setNonce] = useState(0);
+  const alphabet = customAlphabet || alphabets[preset];
+  const result = useMemo(() => randomStrings(length, count, alphabet), [alphabet, count, length, nonce]);
+
+  return (
+    <div className="tool-grid two">
+      <div className="options-block">
+        <div className="field-header">
+          <span>Options</span>
+        </div>
+        <div className="options-container">
+          <Stepper label="Length" value={length} onChange={setLength} min={1} max={512} />
+          <Stepper label="Count" value={count} onChange={setCount} min={1} max={200} />
+          <label className="field">
+            <span>Preset</span>
+            <Select
+              className="ant-control"
+              size="large"
+              value={preset}
+              onChange={setPreset}
+              disabled={Boolean(customAlphabet)}
+              options={[
+                { value: "url", label: "URL-safe" },
+                { value: "alphanumeric", label: "Alphanumeric" },
+                { value: "hex", label: "Hex" },
+                { value: "numeric", label: "Numeric" },
+              ]}
+            />
+          </label>
+          <label className="field">
+            <span>Custom alphabet</span>
+            <input value={customAlphabet} onChange={(event) => setCustomAlphabet(event.target.value)} placeholder="Optional character set" />
+          </label>
+          <button className="primary-action" onClick={() => setNonce((current) => current + 1)}>
+            <RotateCcw size={15} /> Regenerate
+          </button>
+        </div>
+      </div>
+      <Output result={result} />
     </div>
   );
 }
