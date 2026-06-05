@@ -20,6 +20,7 @@ import {
   Wifi,
   RefreshCw,
   MapPin,
+  Trash2,
 } from "lucide-react";
 import QRCode from "qrcode";
 import jsQR from "jsqr";
@@ -1489,7 +1490,7 @@ function shellQuote(value: string) {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
-type CliCommandId = "git" | "rg" | "fd" | "find" | "grep" | "xargs" | "curl" | "wget" | "requests";
+type CliCommandId = "git" | "rg" | "fd" | "find" | "grep" | "xargs" | "kubectl" | "curl" | "wget" | "requests";
 type CliOptionKind = "text" | "number" | "boolean" | "select" | "textarea";
 
 interface CliOption {
@@ -1502,6 +1503,8 @@ interface CliOption {
   defaultValue?: string | boolean;
   choices?: Array<{ value: string; label: string }>;
   help: string;
+  visibleIf?: { key: string; values: (string | boolean)[] };
+  osCompat?: ("linux" | "macos")[];
 }
 
 interface CliCommandDef {
@@ -1524,15 +1527,15 @@ const cliCommandDefs: CliCommandDef[] = [
       { key: "subcommand", label: "Subcommand", kind: "select", defaultValue: "status", help: "Choose the Git operation to build.", choices: [
         "status", "log", "diff", "grep", "add", "commit", "branch", "switch", "checkout", "clone", "pull", "push",
       ].map((value) => ({ value, label: value })) },
-      { key: "target", label: "Path / ref / repo", kind: "text", placeholder: "src or main or https://github.com/owner/repo.git", help: "Main positional argument for commands that need a file, ref, branch, or repository URL." },
-      { key: "message", label: "Commit message", kind: "text", placeholder: "Update CLI builder", help: "Used by git commit -m." },
-      { key: "pattern", label: "Grep pattern", kind: "text", placeholder: "TODO|FIXME", help: "Used by git grep." },
-      { key: "all", label: "--all / -A", kind: "boolean", help: "Show all branches for log/branch, or stage all tracked changes for commit." },
-      { key: "patch", label: "--patch", kind: "boolean", flag: "--patch", help: "Interactively choose hunks for add, checkout, or commit." },
-      { key: "oneline", label: "--oneline", kind: "boolean", flag: "--oneline", defaultValue: true, help: "Compact one-commit-per-line log output." },
-      { key: "stat", label: "--stat", kind: "boolean", flag: "--stat", help: "Show changed file summary for log or diff." },
-      { key: "create", label: "-b / -c create", kind: "boolean", help: "Create a new branch when switching/checking out." },
-      { key: "verbose", label: "--verbose", kind: "boolean", flag: "--verbose", help: "Show more details where supported." },
+      { key: "target", label: "Path / ref / repo", kind: "text", placeholder: "e.g. src or main or https://github.com/owner/repo.git", help: "Main positional argument for commands that need a file, ref, branch, or repository URL." },
+      { key: "message", label: "Commit message", kind: "text", placeholder: "e.g. Update CLI builder", help: "Used by git commit -m.", visibleIf: { key: "subcommand", values: ["commit"] } },
+      { key: "pattern", label: "Grep pattern", kind: "text", placeholder: "e.g. TODO|FIXME", help: "Used by git grep.", visibleIf: { key: "subcommand", values: ["grep"] } },
+      { key: "all", label: "--all / -A", kind: "boolean", help: "Show all branches for log/branch, or stage all tracked changes for commit.", visibleIf: { key: "subcommand", values: ["log", "branch", "commit"] } },
+      { key: "patch", label: "--patch", kind: "boolean", flag: "--patch", help: "Interactively choose hunks for add, checkout, or commit.", visibleIf: { key: "subcommand", values: ["add", "commit", "checkout"] } },
+      { key: "oneline", label: "--oneline", kind: "boolean", flag: "--oneline", defaultValue: true, help: "Compact one-commit-per-line log output.", visibleIf: { key: "subcommand", values: ["log"] } },
+      { key: "stat", label: "--stat", kind: "boolean", flag: "--stat", help: "Show changed file summary for log or diff.", visibleIf: { key: "subcommand", values: ["log", "diff"] } },
+      { key: "create", label: "-b / -c create", kind: "boolean", help: "Create a new branch when switching/checking out.", visibleIf: { key: "subcommand", values: ["switch", "checkout"] } },
+      { key: "verbose", label: "--verbose", kind: "boolean", flag: "--verbose", help: "Show more details where supported.", visibleIf: { key: "subcommand", values: ["branch", "commit", "checkout"] } },
     ],
   },
   {
@@ -1544,9 +1547,9 @@ const cliCommandDefs: CliCommandDef[] = [
     options: [
       { key: "pattern", label: "Pattern", kind: "text", defaultValue: "TODO", help: "Regex or fixed string to search for." },
       { key: "path", label: "Path", kind: "text", defaultValue: ".", help: "File or directory to search." },
-      { key: "type", label: "--type", kind: "text", placeholder: "ts, py, rust", help: "Search only files matching a ripgrep type." },
-      { key: "glob", label: "--glob", kind: "text", placeholder: "*.tsx or !dist/**", help: "Include or exclude paths with glob syntax." },
-      { key: "context", label: "--context", kind: "number", placeholder: "2", help: "Show N lines before and after each match." },
+      { key: "type", label: "--type", kind: "text", placeholder: "e.g. ts, py, rust", help: "Search only files matching a ripgrep type." },
+      { key: "glob", label: "--glob", kind: "text", placeholder: "e.g. *.tsx or !dist/**", help: "Include or exclude paths with glob syntax." },
+      { key: "context", label: "--context", kind: "number", placeholder: "e.g. 2", help: "Show N lines before and after each match." },
       { key: "ignoreCase", label: "--ignore-case", kind: "boolean", flag: "--ignore-case", help: "Case-insensitive search." },
       { key: "fixed", label: "--fixed-strings", kind: "boolean", flag: "--fixed-strings", help: "Treat the pattern literally rather than as regex." },
       { key: "filesWithMatches", label: "--files-with-matches", kind: "boolean", flag: "--files-with-matches", help: "Print only file names containing a match." },
@@ -1563,15 +1566,15 @@ const cliCommandDefs: CliCommandDef[] = [
     docs: "https://github.com/sharkdp/fd#how-to-use",
     repo: "https://github.com/sharkdp/fd",
     options: [
-      { key: "pattern", label: "Pattern", kind: "text", defaultValue: "README", help: "Regex or substring used to match file names." },
+      { key: "pattern", label: "Pattern", kind: "text", placeholder: "e.g. README", help: "Regex or substring used to match file names." },
       { key: "path", label: "Path", kind: "text", defaultValue: ".", help: "Directory to search from." },
       { key: "type", label: "--type", kind: "select", defaultValue: "", help: "Restrict matches by file type.", choices: [
         { value: "", label: "Any" }, { value: "f", label: "File" }, { value: "d", label: "Directory" }, { value: "l", label: "Symlink" }, { value: "x", label: "Executable" }, { value: "e", label: "Empty" },
       ] },
-      { key: "extension", label: "--extension", kind: "text", placeholder: "md", help: "Filter by extension without the dot." },
-      { key: "exclude", label: "--exclude", kind: "text", placeholder: "node_modules", help: "Skip a file or directory pattern." },
-      { key: "maxDepth", label: "--max-depth", kind: "number", placeholder: "3", help: "Limit recursive search depth." },
-      { key: "exec", label: "--exec", kind: "text", placeholder: "sed -n '1,20p' {}", help: "Run a command for each result. Use {} for the current path." },
+      { key: "extension", label: "--extension", kind: "text", placeholder: "e.g. md", help: "Filter by extension without the dot." },
+      { key: "exclude", label: "--exclude", kind: "text", placeholder: "e.g. node_modules", help: "Skip a file or directory pattern." },
+      { key: "maxDepth", label: "--max-depth", kind: "number", placeholder: "e.g. 3", help: "Limit recursive search depth." },
+      { key: "exec", label: "--exec", kind: "text", placeholder: "e.g. sed -n '1,20p' {}", help: "Run a command for each result. Use {} for the current path." },
       { key: "hidden", label: "--hidden", kind: "boolean", flag: "--hidden", help: "Include hidden files and directories." },
       { key: "noIgnore", label: "--no-ignore", kind: "boolean", flag: "--no-ignore", help: "Ignore ignore files." },
       { key: "caseSensitive", label: "--case-sensitive", kind: "boolean", flag: "--case-sensitive", help: "Force case-sensitive matching." },
@@ -1588,14 +1591,14 @@ const cliCommandDefs: CliCommandDef[] = [
     repo: "https://git.savannah.gnu.org/cgit/findutils.git",
     options: [
       { key: "path", label: "Path", kind: "text", defaultValue: ".", help: "Directory to search from." },
-      { key: "name", label: "-name", kind: "text", placeholder: "*.log", help: "Shell pattern for file names." },
+      { key: "name", label: "-name", kind: "text", placeholder: "e.g. *.log", help: "Shell pattern for file names." },
       { key: "type", label: "-type", kind: "select", defaultValue: "", help: "Restrict results by file type.", choices: [
         { value: "", label: "Any" }, { value: "f", label: "File" }, { value: "d", label: "Directory" }, { value: "l", label: "Symlink" },
       ] },
-      { key: "maxDepth", label: "-maxdepth", kind: "number", placeholder: "2", help: "Limit recursion depth. GNU/BSD find support varies for this option." },
-      { key: "mtime", label: "-mtime", kind: "text", placeholder: "-7", help: "Filter by modification days. Example: -7 means newer than 7 days." },
-      { key: "size", label: "-size", kind: "text", placeholder: "+10M", help: "Filter by size. Example: +10M means larger than 10 MB." },
-      { key: "exec", label: "-exec", kind: "text", placeholder: "rm {} \\;", help: "Run a command for each result. Use {} for the matched path." },
+      { key: "maxDepth", label: "-maxdepth", kind: "number", placeholder: "e.g. 2", help: "Limit recursion depth. GNU/BSD find support varies for this option.", osCompat: ["linux"] },
+      { key: "mtime", label: "-mtime", kind: "text", placeholder: "e.g. -7", help: "Filter by modification days. Example: -7 means newer than 7 days." },
+      { key: "size", label: "-size", kind: "text", placeholder: "e.g. +10M", help: "Filter by size. Example: +10M means larger than 10 MB." },
+      { key: "exec", label: "-exec", kind: "text", placeholder: "e.g. rm {} \\;", help: "Run a command for each result. Use {} for the matched path." },
       { key: "print0", label: "-print0", kind: "boolean", help: "Separate paths with NUL for safe piping into xargs -0." },
     ],
   },
@@ -1626,12 +1629,38 @@ const cliCommandDefs: CliCommandDef[] = [
     repo: "https://git.savannah.gnu.org/cgit/findutils.git",
     options: [
       { key: "command", label: "Command", kind: "text", defaultValue: "echo", help: "Command to run with arguments read from stdin." },
-      { key: "maxArgs", label: "--max-args", kind: "number", placeholder: "1", help: "Use at most N input items per command invocation." },
-      { key: "replace", label: "--replace", kind: "text", placeholder: "{}", help: "Replace token inside the command template." },
-      { key: "parallel", label: "--max-procs", kind: "number", placeholder: "4", help: "Run up to N commands in parallel." },
+      { key: "maxArgs", label: "--max-args", kind: "number", defaultValue: "1", help: "Use at most N input items per command invocation." },
+      { key: "replace", label: "-I", kind: "text", defaultValue: "{}", help: "Replace token inside the command template." },
+      { key: "parallel", label: "--max-procs", kind: "number", defaultValue: "4", help: "Run up to N commands in parallel." },
       { key: "null", label: "--null", kind: "boolean", flag: "--null", defaultValue: true, help: "Read NUL-separated input, commonly from find -print0 or fd -0." },
       { key: "verbose", label: "--verbose", kind: "boolean", flag: "--verbose", help: "Print each command before executing it." },
-      { key: "noRunIfEmpty", label: "--no-run-if-empty", kind: "boolean", flag: "--no-run-if-empty", defaultValue: true, help: "Do not run the command if stdin is empty. GNU xargs." },
+      { key: "noRunIfEmpty", label: "--no-run-if-empty", kind: "boolean", flag: "--no-run-if-empty", defaultValue: true, help: "Do not run the command if stdin is empty. GNU xargs.", osCompat: ["linux"] },
+    ],
+  },
+  {
+    id: "kubectl",
+    label: "kubectl",
+    summary: "Kubernetes cluster manager and command-line tool.",
+    docs: "https://kubernetes.io/docs/reference/kubectl/",
+    repo: "https://github.com/kubernetes/kubectl",
+    options: [
+      { key: "subcommand", label: "Subcommand", kind: "select", defaultValue: "get", help: "The action to perform.", choices: [
+        "get", "describe", "create", "apply", "delete", "logs", "exec", "port-forward", "edit"
+      ].map((value) => ({ value, label: value })) },
+      { key: "resource", label: "Resource type", kind: "select", defaultValue: "pods", help: "The Kubernetes resource type.", choices: [
+        { value: "", label: "None" }, "pods", "deployments", "services", "ingress", "nodes", "namespaces", "configmaps", "secrets", "all"
+      ].map((value) => typeof value === "string" ? { value, label: value } : value), visibleIf: { key: "subcommand", values: ["get", "describe", "delete", "edit", "port-forward"] } },
+      { key: "name", label: "Resource name", kind: "text", placeholder: "e.g. my-pod", help: "Specific name of the resource.", visibleIf: { key: "subcommand", values: ["get", "describe", "delete", "logs", "exec", "port-forward", "edit"] } },
+      { key: "namespace", label: "Namespace (-n)", kind: "text", placeholder: "e.g. kube-system", help: "If present, the namespace scope for this CLI request." },
+      { key: "allNamespaces", label: "All namespaces (-A)", kind: "boolean", flag: "-A", help: "If present, list the requested object(s) across all namespaces.", visibleIf: { key: "subcommand", values: ["get", "describe"] } },
+      { key: "file", label: "File (-f)", kind: "text", placeholder: "e.g. deployment.yaml", help: "Filename, directory, or URL to files.", visibleIf: { key: "subcommand", values: ["apply", "create", "delete", "replace"] } },
+      { key: "output", label: "Output format (-o)", kind: "select", defaultValue: "", help: "Output format.", choices: [
+        { value: "", label: "Default" }, { value: "wide", label: "wide" }, { value: "yaml", label: "yaml" }, { value: "json", label: "json" }
+      ], visibleIf: { key: "subcommand", values: ["get", "describe"] } },
+      { key: "container", label: "Container (-c)", kind: "text", placeholder: "e.g. my-container", help: "Print the logs of this container or execute in this container.", visibleIf: { key: "subcommand", values: ["logs", "exec"] } },
+      { key: "follow", label: "Follow logs (-f)", kind: "boolean", flag: "-f", help: "Specify if the logs should be streamed.", visibleIf: { key: "subcommand", values: ["logs"] } },
+      { key: "it", label: "Interactive (-it)", kind: "boolean", flag: "-it", help: "Pass an stdin to the container and TTY.", visibleIf: { key: "subcommand", values: ["exec"] } },
+      { key: "command", label: "Command", kind: "text", placeholder: "e.g. sh", help: "Command to execute (e.g. for exec) or ports (e.g. for port-forward).", visibleIf: { key: "subcommand", values: ["exec", "port-forward"] } },
     ],
   },
   {
@@ -1664,17 +1693,19 @@ function cliDefaults(def: CliCommandDef) {
   return Object.fromEntries(def.options.map((option) => [option.key, option.defaultValue ?? (option.kind === "boolean" ? false : "")])) as Record<string, string | boolean>;
 }
 
-function val(options: Record<string, string | boolean>, key: string) {
-  return String(options[key] ?? "").trim();
+export function isOptionActive(option: CliOption | undefined, options: Record<string, string | boolean>, osMode: "linux" | "macos") {
+  if (!option) return false;
+  if (option.osCompat && !option.osCompat.includes(osMode)) return false;
+  if (option.visibleIf) {
+    if (!option.visibleIf.values.includes(options[option.visibleIf.key])) return false;
+  }
+  return true;
 }
 
-function boolVal(options: Record<string, string | boolean>, key: string) {
-  return Boolean(options[key]);
-}
-
-function pushBooleanFlags(args: string[], def: CliCommandDef, options: Record<string, string | boolean>) {
+function pushBooleanFlags(args: string[], def: CliCommandDef, options: Record<string, string | boolean>, osMode: "linux" | "macos") {
   def.options.forEach((option) => {
-    if (option.kind === "boolean" && option.flag && boolVal(options, option.key)) args.push(option.flag);
+    if (!isOptionActive(option, options, osMode)) return;
+    if (option.kind === "boolean" && option.flag && Boolean(options[option.key])) args.push(option.flag);
   });
 }
 
@@ -1682,7 +1713,17 @@ function joinCommand(args: string[]) {
   return args.filter(Boolean).join(" ");
 }
 
-function buildGenericCliCommand(def: CliCommandDef, options: Record<string, string | boolean>) {
+function buildGenericCliCommand(def: CliCommandDef, options: Record<string, string | boolean>, osMode: "linux" | "macos") {
+  const val = (_opts: any, key: string) => {
+    const option = def.options.find((o) => o.key === key);
+    if (!isOptionActive(option, options, osMode)) return "";
+    return String(options[key] ?? "").trim();
+  };
+  const boolVal = (_opts: any, key: string) => {
+    const option = def.options.find((o) => o.key === key);
+    if (!isOptionActive(option, options, osMode)) return false;
+    return Boolean(options[key]);
+  };
   switch (def.id) {
     case "git": {
       const subcommand = val(options, "subcommand") || "status";
@@ -1721,7 +1762,7 @@ function buildGenericCliCommand(def: CliCommandDef, options: Record<string, stri
     }
     case "rg": {
       const args = ["rg"];
-      pushBooleanFlags(args, def, options);
+      pushBooleanFlags(args, def, options, osMode);
       if (val(options, "type")) args.push("--type", shellQuote(val(options, "type")));
       if (val(options, "glob")) args.push("--glob", shellQuote(val(options, "glob")));
       if (val(options, "context")) args.push("--context", val(options, "context"));
@@ -1731,7 +1772,7 @@ function buildGenericCliCommand(def: CliCommandDef, options: Record<string, stri
     }
     case "fd": {
       const args = ["fd"];
-      pushBooleanFlags(args, def, options);
+      pushBooleanFlags(args, def, options, osMode);
       if (val(options, "type")) args.push("--type", val(options, "type"));
       if (val(options, "extension")) args.push("--extension", shellQuote(val(options, "extension")));
       if (val(options, "exclude")) args.push("--exclude", shellQuote(val(options, "exclude")));
@@ -1754,7 +1795,7 @@ function buildGenericCliCommand(def: CliCommandDef, options: Record<string, stri
     }
     case "grep": {
       const args = ["grep"];
-      pushBooleanFlags(args, def, options);
+      pushBooleanFlags(args, def, options, osMode);
       if (val(options, "context")) args.push("--context", val(options, "context"));
       args.push(shellQuote(val(options, "pattern") || "PATTERN"));
       if (val(options, "path")) args.push(shellQuote(val(options, "path")));
@@ -1762,11 +1803,49 @@ function buildGenericCliCommand(def: CliCommandDef, options: Record<string, stri
     }
     case "xargs": {
       const args = ["xargs"];
-      pushBooleanFlags(args, def, options);
+      pushBooleanFlags(args, def, options, osMode);
       if (val(options, "maxArgs")) args.push("--max-args", val(options, "maxArgs"));
       if (val(options, "parallel")) args.push("--max-procs", val(options, "parallel"));
-      if (val(options, "replace")) args.push("--replace", shellQuote(val(options, "replace")));
+      if (val(options, "replace")) args.push("-I", shellQuote(val(options, "replace")));
       if (val(options, "command")) args.push(val(options, "command"));
+      return joinCommand(args);
+    }
+    case "kubectl": {
+      const subcommand = val(options, "subcommand") || "get";
+      const args = ["kubectl", subcommand];
+      
+      const isFileCommand = subcommand === "apply" || subcommand === "create" || subcommand === "replace";
+      const isLogs = subcommand === "logs";
+      const isExec = subcommand === "exec";
+      
+      if (val(options, "namespace")) args.push("-n", shellQuote(val(options, "namespace")));
+      if (boolVal(options, "allNamespaces") && !isFileCommand) args.push("-A");
+
+      if (isFileCommand) {
+        if (val(options, "file")) args.push("-f", shellQuote(val(options, "file")));
+      } else {
+        if (isExec && boolVal(options, "it")) args.push("-it");
+        if (isLogs && boolVal(options, "follow")) args.push("-f");
+        
+        if (val(options, "resource") && subcommand !== "logs" && subcommand !== "exec" && subcommand !== "port-forward") {
+           args.push(val(options, "resource"));
+        }
+        
+        if (val(options, "name")) {
+           if ((isLogs || isExec || subcommand === "port-forward") && val(options, "resource") && val(options, "resource") !== "pods") {
+             args.push(`${val(options, "resource")}/${shellQuote(val(options, "name"))}`);
+           } else {
+             args.push(shellQuote(val(options, "name")));
+           }
+        }
+        
+        if (val(options, "container")) args.push("-c", shellQuote(val(options, "container")));
+        if (val(options, "output") && (subcommand === "get" || subcommand === "describe")) args.push("-o", val(options, "output"));
+        if (val(options, "command") && (isExec || subcommand === "port-forward")) {
+          if (isExec) args.push("--");
+          args.push(val(options, "command"));
+        }
+      }
       return joinCommand(args);
     }
     default:
@@ -1784,7 +1863,7 @@ function parseHeaders(input: string) {
 function buildHttpCommands(request: {
   method: string;
   url: string;
-  headers: string;
+  headers: { id: string; name: string; value: string }[];
   body: string;
   auth: string;
   timeout: string;
@@ -1795,7 +1874,9 @@ function buildHttpCommands(request: {
 }) {
   const method = request.method || "GET";
   const url = request.url.trim() || "https://api.example.com/users";
-  const headers = parseHeaders(request.headers);
+  const headers = request.headers
+    .map((h) => [h.name.trim(), h.value.trim()])
+    .filter(([name, value]) => name || value);
   const curl = ["curl", "-X", method, shellQuote(url)];
   headers.forEach(([name, value]) => curl.push("-H", shellQuote(`${name}: ${value}`)));
   if (request.body.trim()) curl.push("--data-raw", shellQuote(request.body.trim()));
@@ -1851,6 +1932,7 @@ function buildHttpCommands(request: {
 
 function CliBuilderTool() {
   const [commandId, setCommandId] = useState<CliCommandId>("fd");
+  const [osMode, setOsMode] = useState<"linux" | "macos">("linux");
   const selectedDef = cliCommandDefs.find((def) => def.id === commandId) ?? cliCommandDefs[0];
   const [optionState, setOptionState] = useState<Record<CliCommandId, Record<string, string | boolean>>>(() => Object.fromEntries(
     cliCommandDefs.map((def) => [def.id, cliDefaults(def)])
@@ -1858,7 +1940,7 @@ function CliBuilderTool() {
   const [httpRequest, setHttpRequest] = useState({
     method: "GET",
     url: "https://api.example.com/users",
-    headers: "Accept: application/json",
+    headers: [{ id: Math.random().toString(), name: "Accept", value: "application/json" }],
     body: "",
     auth: "",
     timeout: "30",
@@ -1870,7 +1952,7 @@ function CliBuilderTool() {
 
   const isHttp = selectedDef.id === "curl" || selectedDef.id === "wget" || selectedDef.id === "requests";
   const selectedOptions = optionState[selectedDef.id];
-  const genericCommand = useMemo(() => buildGenericCliCommand(selectedDef, selectedOptions), [selectedDef, selectedOptions]);
+  const genericCommand = useMemo(() => buildGenericCliCommand(selectedDef, selectedOptions, osMode), [selectedDef, selectedOptions, osMode]);
   const httpCommands = useMemo(() => buildHttpCommands(httpRequest), [httpRequest]);
   const primaryOutput = isHttp ? httpCommands[selectedDef.id as "curl" | "wget" | "requests"] : genericCommand;
   const updateOption = (key: string, value: string | boolean) => {
@@ -1886,18 +1968,35 @@ function CliBuilderTool() {
   return (
     <div className="stacked-tool cli-builder">
       <div className="controls-panel cli-command-picker">
-        <label className="field">
-          <span>Command</span>
-          <Select
-            className="ant-control"
-            size="large"
-            showSearch
-            value={commandId}
-            onChange={(value) => setCommandId(value as CliCommandId)}
-            optionFilterProp="label"
-            options={cliCommandDefs.map((def) => ({ value: def.id, label: def.label }))}
-          />
-        </label>
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "flex-end" }}>
+          <label className="field" style={{ flex: 1, minWidth: "200px" }}>
+            <span>Command</span>
+            <Select
+              className="ant-control"
+              size="large"
+              showSearch
+              popupMatchSelectWidth={false}
+              value={commandId}
+              onChange={(value) => setCommandId(value as CliCommandId)}
+              optionFilterProp="label"
+              options={cliCommandDefs.map((def) => ({ value: def.id, label: def.label }))}
+            />
+          </label>
+          <label className="field" style={{ flex: "0 1 240px" }}>
+            <span>Target OS</span>
+            <Segmented
+              className="ant-control"
+              block
+              size="large"
+              value={osMode}
+              onChange={(value) => setOsMode(value as "linux" | "macos")}
+              options={[
+                { value: "linux", label: "Linux (GNU)" },
+                { value: "macos", label: "macOS (BSD)" }
+              ]}
+            />
+          </label>
+        </div>
         <div className="cli-doc-card">
           <strong>{selectedDef.label}</strong>
           <span>{selectedDef.summary}</span>
@@ -1931,10 +2030,77 @@ function CliBuilderTool() {
                   <input value={httpRequest.url} onChange={(event) => setHttpRequest({ ...httpRequest, url: event.target.value })} />
                 </label>
               </div>
-              <label className="field">
+              <div className="field">
                 <span>Headers</span>
-                <textarea className="compact-textarea" value={httpRequest.headers} onChange={(event) => setHttpRequest({ ...httpRequest, headers: event.target.value })} placeholder="Header-Name: value" spellCheck={false} />
-              </label>
+                <div className="header-rows" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {httpRequest.headers.map((header, index) => (
+                    <div key={header.id} className="header-row" style={{ display: "flex", gap: "8px" }}>
+                      <Select
+                        className="ant-control"
+                        style={{ flex: 1 }}
+                        showSearch
+                        allowClear
+                        popupMatchSelectWidth={false}
+                        placeholder="Name (e.g. Authorization)"
+                        value={header.name || undefined}
+                        onChange={(value) => {
+                          const newHeaders = [...httpRequest.headers];
+                          newHeaders[index].name = value ?? "";
+                          setHttpRequest({ ...httpRequest, headers: newHeaders });
+                        }}
+                        onSearch={(value) => {
+                          const newHeaders = [...httpRequest.headers];
+                          newHeaders[index].name = value;
+                          setHttpRequest({ ...httpRequest, headers: newHeaders });
+                        }}
+                        options={[
+                          { value: "Accept", label: "Accept" },
+                          { value: "Authorization", label: "Authorization" },
+                          { value: "Content-Type", label: "Content-Type" },
+                          { value: "Cache-Control", label: "Cache-Control" },
+                          { value: "User-Agent", label: "User-Agent" },
+                          { value: "Proxy-Authorization", label: "Proxy-Authorization" },
+                          { value: "X-Requested-With", label: "X-Requested-With" },
+                          { value: "Origin", label: "Origin" },
+                          { value: "Referer", label: "Referer" }
+                        ]}
+                      />
+                      <input
+                        style={{ flex: 2 }}
+                        value={header.value}
+                        onChange={(event) => {
+                          const newHeaders = [...httpRequest.headers];
+                          newHeaders[index].value = event.target.value;
+                          setHttpRequest({ ...httpRequest, headers: newHeaders });
+                        }}
+                        placeholder="Value (e.g. Bearer <token>)"
+                      />
+                      <button
+                        className="secondary-action"
+                        style={{ padding: "0 12px" }}
+                        onClick={() => {
+                          const newHeaders = httpRequest.headers.filter((_, i) => i !== index);
+                          setHttpRequest({ ...httpRequest, headers: newHeaders });
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    className="secondary-action"
+                    style={{ alignSelf: "flex-start" }}
+                    onClick={() => {
+                      setHttpRequest({
+                        ...httpRequest,
+                        headers: [...httpRequest.headers, { id: Math.random().toString(), name: "", value: "" }]
+                      });
+                    }}
+                  >
+                    <Plus size={16} /> Add Header
+                  </button>
+                </div>
+              </div>
               <label className="field">
                 <span>Body</span>
                 <textarea className="compact-textarea" value={httpRequest.body} onChange={(event) => setHttpRequest({ ...httpRequest, body: event.target.value })} placeholder='{"name":"DevUtils"}' spellCheck={false} />
@@ -1974,7 +2140,7 @@ function CliBuilderTool() {
               <span>Options</span>
             </div>
             <div className="options-container cli-options-container">
-              {selectedDef.options.map((option) => (
+              {selectedDef.options.filter((option) => isOptionActive(option, selectedOptions, osMode)).map((option) => (
                 <CliOptionControl
                   key={option.key}
                   option={option}
@@ -1988,7 +2154,7 @@ function CliBuilderTool() {
             <Output label="Generated command" result={{ ok: true, value: primaryOutput }} />
             <div className="cli-reference">
               <div className="field-header"><span>Option notes</span></div>
-              {selectedDef.options.map((option) => (
+              {selectedDef.options.filter((option) => isOptionActive(option, selectedOptions, osMode)).map((option) => (
                 <div key={option.key}>
                   <strong>{option.label}</strong>
                   <span>{option.help}</span>
@@ -2019,6 +2185,7 @@ function CliOptionControl({ option, value, onChange }: { option: CliOption; valu
           className="ant-control"
           size="large"
           showSearch
+          popupMatchSelectWidth={false}
           value={String(value)}
           onChange={(next) => onChange(String(next))}
           optionFilterProp="label"

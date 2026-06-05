@@ -781,6 +781,26 @@ input[type="checkbox"]:focus-visible { outline: 0; box-shadow: var(--focus); }
 .primary-action:disabled { opacity: 0.48; cursor: default; transform: none; box-shadow: none; }
 .primary-action.flush { margin-top: 0; }
 
+.secondary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-small);
+  padding: 8px 14px;
+  background: var(--surface-code);
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.88rem;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+.secondary-action:hover { border-color: var(--primary); background: var(--surface-high); color: var(--text); }
+.secondary-action:active { transform: translateY(1px); }
+.secondary-action:disabled { opacity: 0.48; cursor: default; transform: none; }
+
 .status-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
