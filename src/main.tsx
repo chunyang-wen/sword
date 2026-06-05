@@ -370,6 +370,7 @@ function ToolSwitch({ id }: { id: string }) {
     case "ip-lookup": return <IpLookupTool />;
     case "url-parser-builder": return <SingleTransform sample="https://user:pass@example.com:443/docs?q=dev#top" transform={parseUrl} />;
     case "http-status-codes": return <HttpStatusTool />;
+    case "cli-builder": return <CliBuilderTool />;
     default: return <div className="notice">Tool not found.</div>;
   }
 }
@@ -1486,6 +1487,565 @@ function downloadFile(content: string, filename: string) {
 
 function shellQuote(value: string) {
   return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+type CliCommandId = "git" | "rg" | "fd" | "find" | "grep" | "xargs" | "curl" | "wget" | "requests";
+type CliOptionKind = "text" | "number" | "boolean" | "select" | "textarea";
+
+interface CliOption {
+  key: string;
+  label: string;
+  flag?: string;
+  shortFlag?: string;
+  kind: CliOptionKind;
+  placeholder?: string;
+  defaultValue?: string | boolean;
+  choices?: Array<{ value: string; label: string }>;
+  help: string;
+}
+
+interface CliCommandDef {
+  id: CliCommandId;
+  label: string;
+  summary: string;
+  docs: string;
+  repo?: string;
+  options: CliOption[];
+}
+
+const cliCommandDefs: CliCommandDef[] = [
+  {
+    id: "git",
+    label: "git",
+    summary: "Version control workflows: status, log, diff, grep, branches, commits, remotes.",
+    docs: "https://git-scm.com/docs",
+    repo: "https://github.com/git/git",
+    options: [
+      { key: "subcommand", label: "Subcommand", kind: "select", defaultValue: "status", help: "Choose the Git operation to build.", choices: [
+        "status", "log", "diff", "grep", "add", "commit", "branch", "switch", "checkout", "clone", "pull", "push",
+      ].map((value) => ({ value, label: value })) },
+      { key: "target", label: "Path / ref / repo", kind: "text", placeholder: "src or main or https://github.com/owner/repo.git", help: "Main positional argument for commands that need a file, ref, branch, or repository URL." },
+      { key: "message", label: "Commit message", kind: "text", placeholder: "Update CLI builder", help: "Used by git commit -m." },
+      { key: "pattern", label: "Grep pattern", kind: "text", placeholder: "TODO|FIXME", help: "Used by git grep." },
+      { key: "all", label: "--all / -A", kind: "boolean", help: "Show all branches for log/branch, or stage all tracked changes for commit." },
+      { key: "patch", label: "--patch", kind: "boolean", flag: "--patch", help: "Interactively choose hunks for add, checkout, or commit." },
+      { key: "oneline", label: "--oneline", kind: "boolean", flag: "--oneline", defaultValue: true, help: "Compact one-commit-per-line log output." },
+      { key: "stat", label: "--stat", kind: "boolean", flag: "--stat", help: "Show changed file summary for log or diff." },
+      { key: "create", label: "-b / -c create", kind: "boolean", help: "Create a new branch when switching/checking out." },
+      { key: "verbose", label: "--verbose", kind: "boolean", flag: "--verbose", help: "Show more details where supported." },
+    ],
+  },
+  {
+    id: "rg",
+    label: "rg",
+    summary: "Fast recursive text search with ripgrep.",
+    docs: "https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md",
+    repo: "https://github.com/BurntSushi/ripgrep",
+    options: [
+      { key: "pattern", label: "Pattern", kind: "text", defaultValue: "TODO", help: "Regex or fixed string to search for." },
+      { key: "path", label: "Path", kind: "text", defaultValue: ".", help: "File or directory to search." },
+      { key: "type", label: "--type", kind: "text", placeholder: "ts, py, rust", help: "Search only files matching a ripgrep type." },
+      { key: "glob", label: "--glob", kind: "text", placeholder: "*.tsx or !dist/**", help: "Include or exclude paths with glob syntax." },
+      { key: "context", label: "--context", kind: "number", placeholder: "2", help: "Show N lines before and after each match." },
+      { key: "ignoreCase", label: "--ignore-case", kind: "boolean", flag: "--ignore-case", help: "Case-insensitive search." },
+      { key: "fixed", label: "--fixed-strings", kind: "boolean", flag: "--fixed-strings", help: "Treat the pattern literally rather than as regex." },
+      { key: "filesWithMatches", label: "--files-with-matches", kind: "boolean", flag: "--files-with-matches", help: "Print only file names containing a match." },
+      { key: "lineNumber", label: "--line-number", kind: "boolean", flag: "--line-number", defaultValue: true, help: "Show line numbers." },
+      { key: "hidden", label: "--hidden", kind: "boolean", flag: "--hidden", help: "Search hidden files and directories." },
+      { key: "noIgnore", label: "--no-ignore", kind: "boolean", flag: "--no-ignore", help: "Do not respect .gitignore, .ignore, or global ignore files." },
+      { key: "json", label: "--json", kind: "boolean", flag: "--json", help: "Emit structured JSON output." },
+    ],
+  },
+  {
+    id: "fd",
+    label: "fd",
+    summary: "Friendly, fast file finding by name, path, type, extension, and command execution.",
+    docs: "https://github.com/sharkdp/fd#how-to-use",
+    repo: "https://github.com/sharkdp/fd",
+    options: [
+      { key: "pattern", label: "Pattern", kind: "text", defaultValue: "README", help: "Regex or substring used to match file names." },
+      { key: "path", label: "Path", kind: "text", defaultValue: ".", help: "Directory to search from." },
+      { key: "type", label: "--type", kind: "select", defaultValue: "", help: "Restrict matches by file type.", choices: [
+        { value: "", label: "Any" }, { value: "f", label: "File" }, { value: "d", label: "Directory" }, { value: "l", label: "Symlink" }, { value: "x", label: "Executable" }, { value: "e", label: "Empty" },
+      ] },
+      { key: "extension", label: "--extension", kind: "text", placeholder: "md", help: "Filter by extension without the dot." },
+      { key: "exclude", label: "--exclude", kind: "text", placeholder: "node_modules", help: "Skip a file or directory pattern." },
+      { key: "maxDepth", label: "--max-depth", kind: "number", placeholder: "3", help: "Limit recursive search depth." },
+      { key: "exec", label: "--exec", kind: "text", placeholder: "sed -n '1,20p' {}", help: "Run a command for each result. Use {} for the current path." },
+      { key: "hidden", label: "--hidden", kind: "boolean", flag: "--hidden", help: "Include hidden files and directories." },
+      { key: "noIgnore", label: "--no-ignore", kind: "boolean", flag: "--no-ignore", help: "Ignore ignore files." },
+      { key: "caseSensitive", label: "--case-sensitive", kind: "boolean", flag: "--case-sensitive", help: "Force case-sensitive matching." },
+      { key: "fullPath", label: "--full-path", kind: "boolean", flag: "--full-path", help: "Match against full path instead of only file name." },
+      { key: "absolutePath", label: "--absolute-path", kind: "boolean", flag: "--absolute-path", help: "Print absolute paths." },
+      { key: "stripCwd", label: "--strip-cwd-prefix", kind: "boolean", flag: "--strip-cwd-prefix", defaultValue: true, help: "Print cleaner relative names without ./ prefix." },
+    ],
+  },
+  {
+    id: "find",
+    label: "find",
+    summary: "Portable POSIX file search by name, type, time, size, and exec actions.",
+    docs: "https://man7.org/linux/man-pages/man1/find.1.html",
+    repo: "https://git.savannah.gnu.org/cgit/findutils.git",
+    options: [
+      { key: "path", label: "Path", kind: "text", defaultValue: ".", help: "Directory to search from." },
+      { key: "name", label: "-name", kind: "text", placeholder: "*.log", help: "Shell pattern for file names." },
+      { key: "type", label: "-type", kind: "select", defaultValue: "", help: "Restrict results by file type.", choices: [
+        { value: "", label: "Any" }, { value: "f", label: "File" }, { value: "d", label: "Directory" }, { value: "l", label: "Symlink" },
+      ] },
+      { key: "maxDepth", label: "-maxdepth", kind: "number", placeholder: "2", help: "Limit recursion depth. GNU/BSD find support varies for this option." },
+      { key: "mtime", label: "-mtime", kind: "text", placeholder: "-7", help: "Filter by modification days. Example: -7 means newer than 7 days." },
+      { key: "size", label: "-size", kind: "text", placeholder: "+10M", help: "Filter by size. Example: +10M means larger than 10 MB." },
+      { key: "exec", label: "-exec", kind: "text", placeholder: "rm {} \\;", help: "Run a command for each result. Use {} for the matched path." },
+      { key: "print0", label: "-print0", kind: "boolean", help: "Separate paths with NUL for safe piping into xargs -0." },
+    ],
+  },
+  {
+    id: "grep",
+    label: "grep",
+    summary: "Classic text search, useful for portable scripts and simple pipelines.",
+    docs: "https://www.gnu.org/software/grep/manual/grep.html",
+    repo: "https://git.savannah.gnu.org/cgit/grep.git",
+    options: [
+      { key: "pattern", label: "Pattern", kind: "text", defaultValue: "TODO", help: "Pattern to search for." },
+      { key: "path", label: "Path", kind: "text", defaultValue: ".", help: "File or directory to search." },
+      { key: "recursive", label: "--recursive", kind: "boolean", flag: "--recursive", defaultValue: true, help: "Recurse into directories." },
+      { key: "ignoreCase", label: "--ignore-case", kind: "boolean", flag: "--ignore-case", help: "Case-insensitive search." },
+      { key: "extended", label: "--extended-regexp", kind: "boolean", flag: "--extended-regexp", help: "Use extended regular expressions." },
+      { key: "fixed", label: "--fixed-strings", kind: "boolean", flag: "--fixed-strings", help: "Treat pattern as a literal string." },
+      { key: "lineNumber", label: "--line-number", kind: "boolean", flag: "--line-number", defaultValue: true, help: "Show line numbers." },
+      { key: "filesWithMatches", label: "--files-with-matches", kind: "boolean", flag: "--files-with-matches", help: "Print only matching file names." },
+      { key: "invert", label: "--invert-match", kind: "boolean", flag: "--invert-match", help: "Select non-matching lines." },
+      { key: "context", label: "--context", kind: "number", placeholder: "2", help: "Show N lines of surrounding context." },
+    ],
+  },
+  {
+    id: "xargs",
+    label: "xargs",
+    summary: "Turn stdin items into command arguments for batch processing.",
+    docs: "https://www.gnu.org/software/findutils/manual/html_node/find_html/xargs-options.html",
+    repo: "https://git.savannah.gnu.org/cgit/findutils.git",
+    options: [
+      { key: "command", label: "Command", kind: "text", defaultValue: "echo", help: "Command to run with arguments read from stdin." },
+      { key: "maxArgs", label: "--max-args", kind: "number", placeholder: "1", help: "Use at most N input items per command invocation." },
+      { key: "replace", label: "--replace", kind: "text", placeholder: "{}", help: "Replace token inside the command template." },
+      { key: "parallel", label: "--max-procs", kind: "number", placeholder: "4", help: "Run up to N commands in parallel." },
+      { key: "null", label: "--null", kind: "boolean", flag: "--null", defaultValue: true, help: "Read NUL-separated input, commonly from find -print0 or fd -0." },
+      { key: "verbose", label: "--verbose", kind: "boolean", flag: "--verbose", help: "Print each command before executing it." },
+      { key: "noRunIfEmpty", label: "--no-run-if-empty", kind: "boolean", flag: "--no-run-if-empty", defaultValue: true, help: "Do not run the command if stdin is empty. GNU xargs." },
+    ],
+  },
+  {
+    id: "curl",
+    label: "curl",
+    summary: "HTTP request builder with equivalent wget and Python requests output.",
+    docs: "https://curl.se/docs/manpage.html",
+    repo: "https://github.com/curl/curl",
+    options: [],
+  },
+  {
+    id: "wget",
+    label: "wget",
+    summary: "HTTP download/request builder with curl and Python requests equivalents.",
+    docs: "https://www.gnu.org/software/wget/manual/wget.html",
+    repo: "https://git.savannah.gnu.org/cgit/wget.git",
+    options: [],
+  },
+  {
+    id: "requests",
+    label: "python requests",
+    summary: "Python requests snippet with curl and wget equivalents.",
+    docs: "https://requests.readthedocs.io/en/latest/",
+    repo: "https://github.com/psf/requests",
+    options: [],
+  },
+];
+
+function cliDefaults(def: CliCommandDef) {
+  return Object.fromEntries(def.options.map((option) => [option.key, option.defaultValue ?? (option.kind === "boolean" ? false : "")])) as Record<string, string | boolean>;
+}
+
+function val(options: Record<string, string | boolean>, key: string) {
+  return String(options[key] ?? "").trim();
+}
+
+function boolVal(options: Record<string, string | boolean>, key: string) {
+  return Boolean(options[key]);
+}
+
+function pushBooleanFlags(args: string[], def: CliCommandDef, options: Record<string, string | boolean>) {
+  def.options.forEach((option) => {
+    if (option.kind === "boolean" && option.flag && boolVal(options, option.key)) args.push(option.flag);
+  });
+}
+
+function joinCommand(args: string[]) {
+  return args.filter(Boolean).join(" ");
+}
+
+function buildGenericCliCommand(def: CliCommandDef, options: Record<string, string | boolean>) {
+  switch (def.id) {
+    case "git": {
+      const subcommand = val(options, "subcommand") || "status";
+      const args = ["git", subcommand];
+      if (subcommand === "commit") {
+        if (boolVal(options, "all")) args.push("-a");
+        if (boolVal(options, "patch")) args.push("--patch");
+        if (val(options, "message")) args.push("-m", shellQuote(val(options, "message")));
+      } else if (subcommand === "log") {
+        if (boolVal(options, "oneline")) args.push("--oneline");
+        if (boolVal(options, "stat")) args.push("--stat");
+        if (boolVal(options, "all")) args.push("--all");
+        if (val(options, "target")) args.push("--", shellQuote(val(options, "target")));
+      } else if (subcommand === "grep") {
+        if (boolVal(options, "all")) args.push("--all-match");
+        if (val(options, "pattern")) args.push(shellQuote(val(options, "pattern")));
+        if (val(options, "target")) args.push("--", shellQuote(val(options, "target")));
+      } else if (subcommand === "switch") {
+        if (boolVal(options, "create")) args.push("-c");
+        if (val(options, "target")) args.push(shellQuote(val(options, "target")));
+      } else if (subcommand === "checkout") {
+        if (boolVal(options, "create")) args.push("-b");
+        if (boolVal(options, "patch")) args.push("--patch");
+        if (val(options, "target")) args.push(shellQuote(val(options, "target")));
+      } else if (subcommand === "branch") {
+        if (boolVal(options, "all")) args.push("--all");
+        if (boolVal(options, "verbose")) args.push("--verbose");
+        if (val(options, "target")) args.push(shellQuote(val(options, "target")));
+      } else {
+        if (boolVal(options, "patch") && subcommand === "add") args.push("--patch");
+        if (boolVal(options, "stat") && subcommand === "diff") args.push("--stat");
+        if (boolVal(options, "verbose")) args.push("--verbose");
+        if (val(options, "target")) args.push(shellQuote(val(options, "target")));
+      }
+      return joinCommand(args);
+    }
+    case "rg": {
+      const args = ["rg"];
+      pushBooleanFlags(args, def, options);
+      if (val(options, "type")) args.push("--type", shellQuote(val(options, "type")));
+      if (val(options, "glob")) args.push("--glob", shellQuote(val(options, "glob")));
+      if (val(options, "context")) args.push("--context", val(options, "context"));
+      args.push(shellQuote(val(options, "pattern") || "PATTERN"));
+      if (val(options, "path")) args.push(shellQuote(val(options, "path")));
+      return joinCommand(args);
+    }
+    case "fd": {
+      const args = ["fd"];
+      pushBooleanFlags(args, def, options);
+      if (val(options, "type")) args.push("--type", val(options, "type"));
+      if (val(options, "extension")) args.push("--extension", shellQuote(val(options, "extension")));
+      if (val(options, "exclude")) args.push("--exclude", shellQuote(val(options, "exclude")));
+      if (val(options, "maxDepth")) args.push("--max-depth", val(options, "maxDepth"));
+      if (val(options, "exec")) args.push("--exec", val(options, "exec"));
+      args.push(shellQuote(val(options, "pattern") || "."));
+      if (val(options, "path")) args.push(shellQuote(val(options, "path")));
+      return joinCommand(args);
+    }
+    case "find": {
+      const args = ["find", shellQuote(val(options, "path") || ".")];
+      if (val(options, "maxDepth")) args.push("-maxdepth", val(options, "maxDepth"));
+      if (val(options, "type")) args.push("-type", val(options, "type"));
+      if (val(options, "name")) args.push("-name", shellQuote(val(options, "name")));
+      if (val(options, "mtime")) args.push("-mtime", val(options, "mtime"));
+      if (val(options, "size")) args.push("-size", val(options, "size"));
+      if (val(options, "exec")) args.push("-exec", val(options, "exec"));
+      if (boolVal(options, "print0")) args.push("-print0");
+      return joinCommand(args);
+    }
+    case "grep": {
+      const args = ["grep"];
+      pushBooleanFlags(args, def, options);
+      if (val(options, "context")) args.push("--context", val(options, "context"));
+      args.push(shellQuote(val(options, "pattern") || "PATTERN"));
+      if (val(options, "path")) args.push(shellQuote(val(options, "path")));
+      return joinCommand(args);
+    }
+    case "xargs": {
+      const args = ["xargs"];
+      pushBooleanFlags(args, def, options);
+      if (val(options, "maxArgs")) args.push("--max-args", val(options, "maxArgs"));
+      if (val(options, "parallel")) args.push("--max-procs", val(options, "parallel"));
+      if (val(options, "replace")) args.push("--replace", shellQuote(val(options, "replace")));
+      if (val(options, "command")) args.push(val(options, "command"));
+      return joinCommand(args);
+    }
+    default:
+      return "";
+  }
+}
+
+function parseHeaders(input: string) {
+  return input.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+    const index = line.indexOf(":");
+    return index === -1 ? [line, ""] : [line.slice(0, index).trim(), line.slice(index + 1).trim()];
+  });
+}
+
+function buildHttpCommands(request: {
+  method: string;
+  url: string;
+  headers: string;
+  body: string;
+  auth: string;
+  timeout: string;
+  output: string;
+  follow: boolean;
+  insecure: boolean;
+  compressed: boolean;
+}) {
+  const method = request.method || "GET";
+  const url = request.url.trim() || "https://api.example.com/users";
+  const headers = parseHeaders(request.headers);
+  const curl = ["curl", "-X", method, shellQuote(url)];
+  headers.forEach(([name, value]) => curl.push("-H", shellQuote(`${name}: ${value}`)));
+  if (request.body.trim()) curl.push("--data-raw", shellQuote(request.body.trim()));
+  if (request.auth.trim()) curl.push("-u", shellQuote(request.auth.trim()));
+  if (request.timeout.trim()) curl.push("--max-time", request.timeout.trim());
+  if (request.output.trim()) curl.push("--output", shellQuote(request.output.trim()));
+  if (request.follow) curl.push("--location");
+  if (request.insecure) curl.push("--insecure");
+  if (request.compressed) curl.push("--compressed");
+
+  const wget = ["wget", "--method", method, shellQuote(url)];
+  headers.forEach(([name, value]) => wget.push("--header", shellQuote(`${name}: ${value}`)));
+  if (request.body.trim()) wget.push("--body-data", shellQuote(request.body.trim()));
+  if (request.auth.trim()) {
+    const [user, pass = ""] = request.auth.split(":");
+    wget.push("--user", shellQuote(user), "--password", shellQuote(pass));
+  }
+  if (request.timeout.trim()) wget.push("--timeout", request.timeout.trim());
+  if (request.output.trim()) wget.push("-O", shellQuote(request.output.trim()));
+  if (request.follow) wget.push("--max-redirect=20");
+  if (request.insecure) wget.push("--no-check-certificate");
+
+  const headerObject = headers.length
+    ? `headers={\n${headers.map(([name, value]) => `    ${JSON.stringify(name)}: ${JSON.stringify(value)},`).join("\n")}\n}`
+    : "headers={}";
+  const [authUser, authPass = ""] = request.auth.split(":");
+  const requestArgs = [
+    `method=${JSON.stringify(method)}`,
+    `url=${JSON.stringify(url)}`,
+    "headers=headers",
+    request.body.trim() ? `data=${JSON.stringify(request.body.trim())}` : "",
+    request.auth.trim() ? `auth=(${JSON.stringify(authUser)}, ${JSON.stringify(authPass)})` : "",
+    request.timeout.trim() ? `timeout=${request.timeout.trim()}` : "",
+    request.insecure ? "verify=False" : "",
+    request.follow ? "allow_redirects=True" : "allow_redirects=False",
+  ].filter(Boolean);
+  const requestsCode = [
+    "import requests",
+    "",
+    headerObject,
+    "",
+    `response = requests.request(${requestArgs.join(", ")})`,
+    "print(response.status_code)",
+    "print(response.text)",
+  ].join("\n");
+
+  return {
+    curl: joinCommand(curl),
+    wget: joinCommand(wget),
+    requests: requestsCode,
+  };
+}
+
+function CliBuilderTool() {
+  const [commandId, setCommandId] = useState<CliCommandId>("fd");
+  const selectedDef = cliCommandDefs.find((def) => def.id === commandId) ?? cliCommandDefs[0];
+  const [optionState, setOptionState] = useState<Record<CliCommandId, Record<string, string | boolean>>>(() => Object.fromEntries(
+    cliCommandDefs.map((def) => [def.id, cliDefaults(def)])
+  ) as Record<CliCommandId, Record<string, string | boolean>>);
+  const [httpRequest, setHttpRequest] = useState({
+    method: "GET",
+    url: "https://api.example.com/users",
+    headers: "Accept: application/json",
+    body: "",
+    auth: "",
+    timeout: "30",
+    output: "",
+    follow: true,
+    insecure: false,
+    compressed: true,
+  });
+
+  const isHttp = selectedDef.id === "curl" || selectedDef.id === "wget" || selectedDef.id === "requests";
+  const selectedOptions = optionState[selectedDef.id];
+  const genericCommand = useMemo(() => buildGenericCliCommand(selectedDef, selectedOptions), [selectedDef, selectedOptions]);
+  const httpCommands = useMemo(() => buildHttpCommands(httpRequest), [httpRequest]);
+  const primaryOutput = isHttp ? httpCommands[selectedDef.id as "curl" | "wget" | "requests"] : genericCommand;
+  const updateOption = (key: string, value: string | boolean) => {
+    setOptionState((current) => ({
+      ...current,
+      [selectedDef.id]: {
+        ...current[selectedDef.id],
+        [key]: value,
+      },
+    }));
+  };
+
+  return (
+    <div className="stacked-tool cli-builder">
+      <div className="controls-panel cli-command-picker">
+        <label className="field">
+          <span>Command</span>
+          <Select
+            className="ant-control"
+            size="large"
+            showSearch
+            value={commandId}
+            onChange={(value) => setCommandId(value as CliCommandId)}
+            optionFilterProp="label"
+            options={cliCommandDefs.map((def) => ({ value: def.id, label: def.label }))}
+          />
+        </label>
+        <div className="cli-doc-card">
+          <strong>{selectedDef.label}</strong>
+          <span>{selectedDef.summary}</span>
+          <div>
+            <a href={selectedDef.docs} target="_blank" rel="noreferrer">Docs</a>
+            {selectedDef.repo && <a href={selectedDef.repo} target="_blank" rel="noreferrer">Source</a>}
+          </div>
+        </div>
+      </div>
+
+      {isHttp ? (
+        <div className="tool-grid two">
+          <div className="options-block">
+            <div className="field-header">
+              <span>HTTP request</span>
+            </div>
+            <div className="options-container cli-options-container">
+              <div className="options-row">
+                <label className="field">
+                  <span>Method</span>
+                  <Select
+                    className="ant-control"
+                    size="large"
+                    value={httpRequest.method}
+                    onChange={(method) => setHttpRequest({ ...httpRequest, method })}
+                    options={["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => ({ value: method, label: method }))}
+                  />
+                </label>
+                <label className="field wide-field">
+                  <span>URL</span>
+                  <input value={httpRequest.url} onChange={(event) => setHttpRequest({ ...httpRequest, url: event.target.value })} />
+                </label>
+              </div>
+              <label className="field">
+                <span>Headers</span>
+                <textarea className="compact-textarea" value={httpRequest.headers} onChange={(event) => setHttpRequest({ ...httpRequest, headers: event.target.value })} placeholder="Header-Name: value" spellCheck={false} />
+              </label>
+              <label className="field">
+                <span>Body</span>
+                <textarea className="compact-textarea" value={httpRequest.body} onChange={(event) => setHttpRequest({ ...httpRequest, body: event.target.value })} placeholder='{"name":"DevUtils"}' spellCheck={false} />
+              </label>
+              <div className="options-row">
+                <label className="field">
+                  <span>Basic auth</span>
+                  <input value={httpRequest.auth} onChange={(event) => setHttpRequest({ ...httpRequest, auth: event.target.value })} placeholder="user:password" />
+                </label>
+                <label className="field">
+                  <span>Timeout seconds</span>
+                  <input value={httpRequest.timeout} onChange={(event) => setHttpRequest({ ...httpRequest, timeout: event.target.value })} placeholder="30" />
+                </label>
+                <label className="field">
+                  <span>Output file</span>
+                  <input value={httpRequest.output} onChange={(event) => setHttpRequest({ ...httpRequest, output: event.target.value })} placeholder="response.json" />
+                </label>
+              </div>
+              <div className="checkbox-group">
+                <label className="checkbox-field"><input type="checkbox" checked={httpRequest.follow} onChange={(event) => setHttpRequest({ ...httpRequest, follow: event.target.checked })} /> <span>Follow redirects</span></label>
+                <label className="checkbox-field"><input type="checkbox" checked={httpRequest.insecure} onChange={(event) => setHttpRequest({ ...httpRequest, insecure: event.target.checked })} /> <span>Skip TLS verification</span></label>
+                <label className="checkbox-field"><input type="checkbox" checked={httpRequest.compressed} onChange={(event) => setHttpRequest({ ...httpRequest, compressed: event.target.checked })} /> <span>Request compressed response</span></label>
+              </div>
+            </div>
+          </div>
+          <div className="preview-stack">
+            <Output label={`Generated ${selectedDef.label}`} result={{ ok: true, value: primaryOutput }} />
+            <Output label="curl" result={{ ok: true, value: httpCommands.curl }} />
+            <Output label="wget" result={{ ok: true, value: httpCommands.wget }} />
+            <Output label="Python requests" result={{ ok: true, value: httpCommands.requests }} />
+          </div>
+        </div>
+      ) : (
+        <div className="tool-grid two">
+          <div className="options-block">
+            <div className="field-header">
+              <span>Options</span>
+            </div>
+            <div className="options-container cli-options-container">
+              {selectedDef.options.map((option) => (
+                <CliOptionControl
+                  key={option.key}
+                  option={option}
+                  value={selectedOptions[option.key]}
+                  onChange={(value) => updateOption(option.key, value)}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="preview-stack">
+            <Output label="Generated command" result={{ ok: true, value: primaryOutput }} />
+            <div className="cli-reference">
+              <div className="field-header"><span>Option notes</span></div>
+              {selectedDef.options.map((option) => (
+                <div key={option.key}>
+                  <strong>{option.label}</strong>
+                  <span>{option.help}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CliOptionControl({ option, value, onChange }: { option: CliOption; value: string | boolean; onChange: (value: string | boolean) => void }) {
+  if (option.kind === "boolean") {
+    return (
+      <label className="checkbox-field cli-checkbox">
+        <input type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
+        <span>{option.label}</span>
+      </label>
+    );
+  }
+  if (option.kind === "select") {
+    return (
+      <label className="field">
+        <span>{option.label}</span>
+        <Select
+          className="ant-control"
+          size="large"
+          showSearch
+          value={String(value)}
+          onChange={(next) => onChange(String(next))}
+          optionFilterProp="label"
+          options={option.choices ?? []}
+        />
+      </label>
+    );
+  }
+  if (option.kind === "textarea") {
+    return (
+      <label className="field">
+        <span>{option.label}</span>
+        <textarea className="compact-textarea" value={String(value)} onChange={(event) => onChange(event.target.value)} placeholder={option.placeholder} spellCheck={false} />
+      </label>
+    );
+  }
+  return (
+    <label className="field">
+      <span>{option.label}</span>
+      <input
+        type={option.kind === "number" ? "number" : "text"}
+        value={String(value)}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={option.placeholder}
+      />
+    </label>
+  );
 }
 
 function SshKeyTool() {

@@ -25,6 +25,7 @@ import {
   Shuffle,
   Table2,
   Text,
+  Terminal,
   Type,
   Info,
   MapPin,
@@ -40,7 +41,8 @@ export type ToolCategoryId =
   | "formatters"
   | "encoders"
   | "generators"
-  | "network";
+  | "network"
+  | "cli";
 
 export interface ToolDefinition {
   id: string;
@@ -61,6 +63,7 @@ export const categories: Record<ToolCategoryId, string> = {
   encoders: "Encoders / Decoders",
   generators: "Generators",
   network: "Network",
+  cli: "CLI",
 };
 
 export const tools: ToolDefinition[] = [
@@ -100,6 +103,7 @@ export const tools: ToolDefinition[] = [
   { id: "ip-lookup", title: "IP Geolocation", subtitle: "Check Geolocation and ISP info for any IP address", category: "network", route: "#/tools/ip-lookup", icon: MapPin, status: "ready" },
   { id: "url-parser-builder", title: "URL Parser", subtitle: "Parse and build URLs", category: "network", route: "#/tools/url-parser-builder", icon: Link, status: "ready" },
   { id: "http-status-codes", title: "HTTP Status", subtitle: "HTTP status code reference", category: "network", route: "#/tools/http-status-codes", icon: FileText, status: "ready" },
+  { id: "cli-builder", title: "CLI Builder", subtitle: "Build common git, search, pipe, and HTTP commands", category: "cli", route: "#/tools/cli-builder", icon: Terminal, status: "ready" },
 ];
 
 export const toolById = new Map(tools.map((tool) => [tool.id, tool]));

@@ -667,6 +667,8 @@ textarea:focus { outline: 0; border-color: var(--primary); box-shadow: var(--foc
 .controls-panel select,
 .options-panel input:not([type="checkbox"]),
 .options-panel select,
+.options-container input:not([type="checkbox"]),
+.options-container select,
 .wide-input,
 .option-select {
   width: 100%;
@@ -686,6 +688,8 @@ textarea:focus { outline: 0; border-color: var(--primary); box-shadow: var(--foc
 .controls-panel select:hover,
 .options-panel input:not([type="checkbox"]):hover,
 .options-panel select:hover,
+.options-container input:not([type="checkbox"]):hover,
+.options-container select:hover,
 .wide-input:hover,
 .option-select:hover { border-color: var(--border-strong); }
 
@@ -695,6 +699,8 @@ textarea:focus { outline: 0; border-color: var(--primary); box-shadow: var(--foc
 .controls-panel select:focus,
 .options-panel input:not([type="checkbox"]):focus,
 .options-panel select:focus,
+.options-container input:not([type="checkbox"]):focus,
+.options-container select:focus,
 .wide-input:focus,
 .option-select:focus {
   outline: 0;
@@ -702,9 +708,16 @@ textarea:focus { outline: 0; border-color: var(--primary); box-shadow: var(--foc
   box-shadow: var(--focus);
 }
 
+.options-container input::placeholder,
+.options-container textarea::placeholder {
+  color: var(--subtle);
+  opacity: 1;
+}
+
 .controls select,
 .controls-panel select,
 .options-panel select,
+.options-container select,
 .option-select {
   appearance: none;
   -webkit-appearance: none;
@@ -904,6 +917,106 @@ input[type="checkbox"]:focus-visible { outline: 0; box-shadow: var(--focus); }
 
 .certificate-controls { margin-bottom: 0; }
 .certificate-port-field { flex: 0 1 140px !important; }
+.cli-command-picker {
+  display: grid;
+  grid-template-columns: minmax(220px, 360px) minmax(0, 1fr);
+  align-items: stretch;
+  margin-bottom: 0;
+}
+.cli-doc-card {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-code);
+}
+.cli-doc-card strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 800;
+}
+.cli-doc-card span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.cli-doc-card div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cli-doc-card a {
+  width: max-content;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border));
+  border-radius: var(--radius-small);
+  background: var(--primary-tonal);
+  color: var(--primary-strong);
+  font-family: var(--font-mono);
+  font-size: 0.73rem;
+  font-weight: 800;
+}
+.cli-options-container {
+  min-height: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: start;
+}
+.cli-options-container .field:has(.compact-textarea),
+.cli-options-container .options-row,
+.cli-options-container .checkbox-group {
+  grid-column: 1 / -1;
+}
+.cli-checkbox {
+  min-height: 44px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-code);
+}
+.cli-checkbox:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-high);
+}
+.compact-textarea {
+  min-height: 116px;
+  resize: vertical;
+}
+.cli-builder .output-block pre {
+  min-height: 180px;
+}
+.cli-builder .preview-stack .output-block + .output-block pre {
+  min-height: 120px;
+  max-height: 260px;
+  overflow: auto;
+}
+.cli-reference {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.cli-reference > div:not(.field-header) {
+  display: grid;
+  gap: 3px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.cli-reference strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+.cli-reference span {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
 .openssl-hint,
 .cli-hint {
   display: grid;
@@ -1171,6 +1284,7 @@ input[type="checkbox"]:focus-visible { outline: 0; box-shadow: var(--focus); }
   }
   .options-panel,
   .controls-panel { padding: 14px; }
+  .cli-command-picker { grid-template-columns: 1fr; }
 }
 
 /* Text Diff Custom Inline Highlights */
@@ -1377,4 +1491,3 @@ input[type="checkbox"]:focus-visible { outline: 0; box-shadow: var(--focus); }
     justify-content: flex-end;
   }
 }
-
