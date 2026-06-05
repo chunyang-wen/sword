@@ -183,6 +183,18 @@ describe("formatters and encoders", () => {
     expect(base64Decode(encoded)).toEqual({ ok: true, value: "Hello" });
   });
 
+  it("encodes and decodes base64 with altchars", () => {
+    const sample = "hello??>><<";
+    const encodedSafe = base64Encode(sample, "-_");
+    expect(encodedSafe).not.toContain("+");
+    expect(encodedSafe).not.toContain("/");
+    expect(base64Decode(encodedSafe, "-_")).toEqual({ ok: true, value: sample });
+    
+    // Check with missing padding during decode
+    const missingPadding = encodedSafe.replace(/=+$/, "");
+    expect(base64Decode(missingPadding, "-_")).toEqual({ ok: true, value: sample });
+  });
+
   it("decodes JWT payloads", () => {
     const result = decodeJwt("eyJhbGciOiJub25lIn0.eyJzdWIiOiIxMjMifQ.");
     expect(result.ok && result.value).toContain('"sub": "123"');

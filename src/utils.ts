@@ -332,13 +332,27 @@ export function urlDecode(input: string): Result<string> {
   }
 }
 
-export function base64Encode(input: string): string {
-  return btoa(unescape(encodeURIComponent(input)));
+export function base64Encode(input: string, altchars?: string): string {
+  let encoded = btoa(unescape(encodeURIComponent(input)));
+  if (altchars && altchars.length === 2) {
+    encoded = encoded.replace(/\+/g, altchars[0]).replace(/\//g, altchars[1]);
+  }
+  return encoded;
 }
 
-export function base64Decode(input: string): Result<string> {
+export function base64Decode(input: string, altchars?: string): Result<string> {
   try {
-    return { ok: true, value: decodeURIComponent(escape(atob(input.trim()))) };
+    let base64 = input.trim();
+    if (altchars && altchars.length === 2) {
+      const esc0 = altchars[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const esc1 = altchars[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      base64 = base64.replace(new RegExp(esc0, "g"), "+").replace(new RegExp(esc1, "g"), "/");
+    }
+    // Restore padding if missing, btoa/atob require correct padding
+    while (base64.length % 4) {
+      base64 += "=";
+    }
+    return { ok: true, value: decodeURIComponent(escape(atob(base64))) };
   } catch {
     return { ok: false, error: "Invalid Base64 input." };
   }

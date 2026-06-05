@@ -332,7 +332,7 @@ function ToolSwitch({ id }: { id: string }) {
     case "cron-job-parser": return <CronTool />;
     case "qr-coder": return <QrTool />;
     case "url-coder": return <EncodeDecodeTool encode={urlEncode} decode={urlDecode} sample="https://example.com/search?q=dev utils" />;
-    case "base64-coder": return <EncodeDecodeTool encode={base64Encode} decode={base64Decode} sample="Hello, DevUtils" />;
+    case "base64-coder": return <Base64Tool />;
     case "jwt-decoder": return <SingleTransform sample={jwtSample} transform={decodeJwt} />;
     case "certificate-decoder": return <CertificateTool />;
     case "hash-generator": return <HashTool />;
@@ -593,6 +593,66 @@ function EncodeDecodeTool({ encode, decode, sample }: { encode: (input: string) 
         <Output result={result} />
       </div>
     </>
+  );
+}
+
+function Base64Tool() {
+  const [mode, setMode] = useState<"encode" | "decode">("encode");
+  const [altchars, setAltchars] = useState("");
+  const sample = "Hello, DevUtils";
+  const [encodeInput, setEncodeInput] = useState(sample);
+  const [decodeInput, setDecodeInput] = useState(() => base64Encode(sample));
+
+  const input = mode === "encode" ? encodeInput : decodeInput;
+  const setInput = (val: string) => {
+    if (mode === "encode") {
+      setEncodeInput(val);
+    } else {
+      setDecodeInput(val);
+    }
+  };
+
+  const result = useMemo(() => {
+    return mode === "encode"
+      ? { ok: true as const, value: base64Encode(encodeInput, altchars) }
+      : base64Decode(decodeInput, altchars);
+  }, [mode, encodeInput, decodeInput, altchars]);
+
+  const handleModeChange = (newMode: "encode" | "decode") => {
+    if (newMode === "decode") {
+      setDecodeInput(base64Encode(encodeInput, altchars));
+    } else {
+      const decoded = base64Decode(decodeInput, altchars);
+      if (decoded.ok) {
+        setEncodeInput(decoded.value);
+      }
+    }
+    setMode(newMode);
+  };
+
+  return (
+    <div className="stacked-tool">
+      <div className="controls-panel horizontal">
+        <label className="field" style={{ maxWidth: 200 }}>
+          <span>Alternative Characters (altchars)</span>
+          <input 
+            type="text" 
+            value={altchars} 
+            onChange={(e) => setAltchars(e.target.value.slice(0, 2))} 
+            placeholder="e.g. -_"
+            maxLength={2}
+          />
+        </label>
+      </div>
+      <div className="segmented wide">
+        <button className={mode === "encode" ? "selected" : ""} onClick={() => handleModeChange("encode")}>Encode</button>
+        <button className={mode === "decode" ? "selected" : ""} onClick={() => handleModeChange("decode")}>Decode</button>
+      </div>
+      <div className="tool-grid two">
+        <TextArea label="Input" value={input} setValue={setInput} />
+        <Output result={result} />
+      </div>
+    </div>
   );
 }
 
