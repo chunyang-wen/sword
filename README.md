@@ -14,6 +14,7 @@ A modern, fast, and local-first browser version of the **DevUtils macOS develope
 - **Modern UI**: Clean and beautiful interface matching the macOS experience.
 - **Lightning Fast**: Built with Vite + React + TypeScript.
 - **Easy Deployment**: Designed out-of-the-box for GitHub Pages.
+- **Interactive Cheatsheets**: Quick access to handy references and commands for common CLI tools.
 
 ---
 
@@ -30,6 +31,11 @@ A modern, fast, and local-first browser version of the **DevUtils macOS develope
 
 ### 🔑 SSH Key Generator
 ![SSH Key Generator](assets/ssh-key.png)
+
+### 📝 Cheatsheet for common CLI
+Provides a quick reference guide for frequently used CLI commands (like Git, Docker, and Linux). Easily browse and copy commands to boost your daily productivity.
+
+![Cheatsheet](assets/cheatsheet.png)
 
 ---
 
