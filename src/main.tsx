@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ConfigProvider, DatePicker, Input, Segmented, Select, TimePicker, theme as antdTheme } from "antd";
+import { ConfigProvider, DatePicker, Input, Segmented, Select, TimePicker, AutoComplete, theme as antdTheme } from "antd";
 import dayjs from "dayjs";
 import {
   Check,
@@ -17,6 +17,11 @@ import {
   Globe,
   Monitor,
   Cpu,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronDown,
+  Copy,
   Wifi,
   RefreshCw,
   MapPin,
@@ -73,6 +78,8 @@ import {
   urlEncode,
   uuidList,
   yamlToJson,
+  fetchLocalCheatsheet,
+  formatCheatsheetMarkdown,
   type WebFormatLanguage,
   type WebFormatMode,
   type UnitCategory,
@@ -371,6 +378,7 @@ function ToolSwitch({ id }: { id: string }) {
     case "ip-lookup": return <IpLookupTool />;
     case "url-parser-builder": return <SingleTransform sample="https://user:pass@example.com:443/docs?q=dev#top" transform={parseUrl} />;
     case "http-status-codes": return <HttpStatusTool />;
+    case "cli-cheatsheet": return <CliCheatsheetTool />;
     case "cli-builder": return <CliBuilderTool />;
     default: return <div className="notice">Tool not found.</div>;
   }
@@ -1931,12 +1939,6 @@ function buildHttpCommands(request: {
 }
 
 function CliBuilderTool() {
-  const [commandId, setCommandId] = useState<CliCommandId>("fd");
-  const [osMode, setOsMode] = useState<"linux" | "macos">("linux");
-  const selectedDef = cliCommandDefs.find((def) => def.id === commandId) ?? cliCommandDefs[0];
-  const [optionState, setOptionState] = useState<Record<CliCommandId, Record<string, string | boolean>>>(() => Object.fromEntries(
-    cliCommandDefs.map((def) => [def.id, cliDefaults(def)])
-  ) as Record<CliCommandId, Record<string, string | boolean>>);
   const [httpRequest, setHttpRequest] = useState({
     method: "GET",
     url: "https://api.example.com/users",
@@ -1950,220 +1952,134 @@ function CliBuilderTool() {
     compressed: true,
   });
 
-  const isHttp = selectedDef.id === "curl" || selectedDef.id === "wget" || selectedDef.id === "requests";
-  const selectedOptions = optionState[selectedDef.id];
-  const genericCommand = useMemo(() => buildGenericCliCommand(selectedDef, selectedOptions, osMode), [selectedDef, selectedOptions, osMode]);
   const httpCommands = useMemo(() => buildHttpCommands(httpRequest), [httpRequest]);
-  const primaryOutput = isHttp ? httpCommands[selectedDef.id as "curl" | "wget" | "requests"] : genericCommand;
-  const updateOption = (key: string, value: string | boolean) => {
-    setOptionState((current) => ({
-      ...current,
-      [selectedDef.id]: {
-        ...current[selectedDef.id],
-        [key]: value,
-      },
-    }));
-  };
 
   return (
     <div className="stacked-tool cli-builder">
-      <div className="controls-panel cli-command-picker">
-        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "flex-end" }}>
-          <label className="field" style={{ flex: 1, minWidth: "200px" }}>
-            <span>Command</span>
-            <Select
-              className="ant-control"
-              size="large"
-              showSearch
-              popupMatchSelectWidth={false}
-              value={commandId}
-              onChange={(value) => setCommandId(value as CliCommandId)}
-              optionFilterProp="label"
-              options={cliCommandDefs.map((def) => ({ value: def.id, label: def.label }))}
-            />
-          </label>
-          <label className="field" style={{ flex: "0 1 240px" }}>
-            <span>Target OS</span>
-            <Segmented
-              className="ant-control"
-              block
-              size="large"
-              value={osMode}
-              onChange={(value) => setOsMode(value as "linux" | "macos")}
-              options={[
-                { value: "linux", label: "Linux (GNU)" },
-                { value: "macos", label: "macOS (BSD)" }
-              ]}
-            />
-          </label>
-        </div>
-        <div className="cli-doc-card">
-          <strong>{selectedDef.label}</strong>
-          <span>{selectedDef.summary}</span>
-          <div>
-            <a href={selectedDef.docs} target="_blank" rel="noreferrer">Docs</a>
-            {selectedDef.repo && <a href={selectedDef.repo} target="_blank" rel="noreferrer">Source</a>}
+      <div className="tool-grid two">
+        <div className="options-block">
+          <div className="field-header">
+            <span>HTTP request</span>
           </div>
+          <div className="options-container cli-options-container">
+            <div className="options-row">
+              <label className="field">
+                <span>Method</span>
+                <Select
+                  className="ant-control"
+                  size="large"
+                  value={httpRequest.method}
+                  onChange={(method) => setHttpRequest({ ...httpRequest, method })}
+                  options={["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => ({ value: method, label: method }))}
+                />
+              </label>
+              <label className="field wide-field">
+                <span>URL</span>
+                <input value={httpRequest.url} onChange={(event) => setHttpRequest({ ...httpRequest, url: event.target.value })} />
+              </label>
+            </div>
+            <div className="field">
+              <span>Headers</span>
+              <div className="header-rows" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {httpRequest.headers.map((header, index) => (
+                  <div key={header.id} className="header-row" style={{ display: "flex", gap: "8px" }}>
+                    <Select
+                      className="ant-control"
+                      style={{ flex: 1 }}
+                      showSearch
+                      allowClear
+                      popupMatchSelectWidth={false}
+                      placeholder="Name (e.g. Authorization)"
+                      value={header.name || undefined}
+                      onChange={(value) => {
+                        const newHeaders = [...httpRequest.headers];
+                        newHeaders[index].name = value ?? "";
+                        setHttpRequest({ ...httpRequest, headers: newHeaders });
+                      }}
+                      onSearch={(value) => {
+                        const newHeaders = [...httpRequest.headers];
+                        newHeaders[index].name = value;
+                        setHttpRequest({ ...httpRequest, headers: newHeaders });
+                      }}
+                      options={[
+                        { value: "Accept", label: "Accept" },
+                        { value: "Authorization", label: "Authorization" },
+                        { value: "Content-Type", label: "Content-Type" },
+                        { value: "Cache-Control", label: "Cache-Control" },
+                        { value: "User-Agent", label: "User-Agent" },
+                        { value: "Proxy-Authorization", label: "Proxy-Authorization" },
+                        { value: "X-Requested-With", label: "X-Requested-With" },
+                        { value: "Origin", label: "Origin" },
+                        { value: "Referer", label: "Referer" }
+                      ]}
+                    />
+                    <input
+                      style={{ flex: 2 }}
+                      value={header.value}
+                      onChange={(event) => {
+                        const newHeaders = [...httpRequest.headers];
+                        newHeaders[index].value = event.target.value;
+                        setHttpRequest({ ...httpRequest, headers: newHeaders });
+                      }}
+                      placeholder="Value (e.g. Bearer <token>)"
+                    />
+                    <button
+                      className="secondary-action"
+                      style={{ padding: "0 12px" }}
+                      onClick={() => {
+                        const newHeaders = httpRequest.headers.filter((_, i) => i !== index);
+                        setHttpRequest({ ...httpRequest, headers: newHeaders });
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  className="secondary-action"
+                  style={{ alignSelf: "flex-start" }}
+                  onClick={() => {
+                    setHttpRequest({
+                      ...httpRequest,
+                      headers: [...httpRequest.headers, { id: Math.random().toString(), name: "", value: "" }]
+                    });
+                  }}
+                >
+                  <Plus size={16} /> Add Header
+                </button>
+              </div>
+            </div>
+            <label className="field">
+              <span>Body</span>
+              <textarea className="compact-textarea" value={httpRequest.body} onChange={(event) => setHttpRequest({ ...httpRequest, body: event.target.value })} placeholder='{"name":"DevUtils"}' spellCheck={false} />
+            </label>
+            <div className="options-row">
+              <label className="field">
+                <span>Basic auth</span>
+                <input value={httpRequest.auth} onChange={(event) => setHttpRequest({ ...httpRequest, auth: event.target.value })} placeholder="user:password" />
+              </label>
+              <label className="field">
+                <span>Timeout seconds</span>
+                <input value={httpRequest.timeout} onChange={(event) => setHttpRequest({ ...httpRequest, timeout: event.target.value })} placeholder="30" />
+              </label>
+              <label className="field">
+                <span>Output file</span>
+                <input value={httpRequest.output} onChange={(event) => setHttpRequest({ ...httpRequest, output: event.target.value })} placeholder="response.json" />
+              </label>
+            </div>
+            <div className="checkbox-group">
+              <label className="checkbox-field"><input type="checkbox" checked={httpRequest.follow} onChange={(event) => setHttpRequest({ ...httpRequest, follow: event.target.checked })} /> <span>Follow redirects</span></label>
+              <label className="checkbox-field"><input type="checkbox" checked={httpRequest.insecure} onChange={(event) => setHttpRequest({ ...httpRequest, insecure: event.target.checked })} /> <span>Skip TLS verification</span></label>
+              <label className="checkbox-field"><input type="checkbox" checked={httpRequest.compressed} onChange={(event) => setHttpRequest({ ...httpRequest, compressed: event.target.checked })} /> <span>Request compressed response</span></label>
+            </div>
+          </div>
+        </div>
+        <div className="preview-stack">
+            <Output label="cURL" result={{ ok: true, value: httpCommands.curl }} />
+            <Output label="Wget" result={{ ok: true, value: httpCommands.wget }} />
+            <Output label="Python requests" result={{ ok: true, value: httpCommands.requests }} />
         </div>
       </div>
-
-      {isHttp ? (
-        <div className="tool-grid two">
-          <div className="options-block">
-            <div className="field-header">
-              <span>HTTP request</span>
-            </div>
-            <div className="options-container cli-options-container">
-              <div className="options-row">
-                <label className="field">
-                  <span>Method</span>
-                  <Select
-                    className="ant-control"
-                    size="large"
-                    value={httpRequest.method}
-                    onChange={(method) => setHttpRequest({ ...httpRequest, method })}
-                    options={["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((method) => ({ value: method, label: method }))}
-                  />
-                </label>
-                <label className="field wide-field">
-                  <span>URL</span>
-                  <input value={httpRequest.url} onChange={(event) => setHttpRequest({ ...httpRequest, url: event.target.value })} />
-                </label>
-              </div>
-              <div className="field">
-                <span>Headers</span>
-                <div className="header-rows" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {httpRequest.headers.map((header, index) => (
-                    <div key={header.id} className="header-row" style={{ display: "flex", gap: "8px" }}>
-                      <Select
-                        className="ant-control"
-                        style={{ flex: 1 }}
-                        showSearch
-                        allowClear
-                        popupMatchSelectWidth={false}
-                        placeholder="Name (e.g. Authorization)"
-                        value={header.name || undefined}
-                        onChange={(value) => {
-                          const newHeaders = [...httpRequest.headers];
-                          newHeaders[index].name = value ?? "";
-                          setHttpRequest({ ...httpRequest, headers: newHeaders });
-                        }}
-                        onSearch={(value) => {
-                          const newHeaders = [...httpRequest.headers];
-                          newHeaders[index].name = value;
-                          setHttpRequest({ ...httpRequest, headers: newHeaders });
-                        }}
-                        options={[
-                          { value: "Accept", label: "Accept" },
-                          { value: "Authorization", label: "Authorization" },
-                          { value: "Content-Type", label: "Content-Type" },
-                          { value: "Cache-Control", label: "Cache-Control" },
-                          { value: "User-Agent", label: "User-Agent" },
-                          { value: "Proxy-Authorization", label: "Proxy-Authorization" },
-                          { value: "X-Requested-With", label: "X-Requested-With" },
-                          { value: "Origin", label: "Origin" },
-                          { value: "Referer", label: "Referer" }
-                        ]}
-                      />
-                      <input
-                        style={{ flex: 2 }}
-                        value={header.value}
-                        onChange={(event) => {
-                          const newHeaders = [...httpRequest.headers];
-                          newHeaders[index].value = event.target.value;
-                          setHttpRequest({ ...httpRequest, headers: newHeaders });
-                        }}
-                        placeholder="Value (e.g. Bearer <token>)"
-                      />
-                      <button
-                        className="secondary-action"
-                        style={{ padding: "0 12px" }}
-                        onClick={() => {
-                          const newHeaders = httpRequest.headers.filter((_, i) => i !== index);
-                          setHttpRequest({ ...httpRequest, headers: newHeaders });
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    className="secondary-action"
-                    style={{ alignSelf: "flex-start" }}
-                    onClick={() => {
-                      setHttpRequest({
-                        ...httpRequest,
-                        headers: [...httpRequest.headers, { id: Math.random().toString(), name: "", value: "" }]
-                      });
-                    }}
-                  >
-                    <Plus size={16} /> Add Header
-                  </button>
-                </div>
-              </div>
-              <label className="field">
-                <span>Body</span>
-                <textarea className="compact-textarea" value={httpRequest.body} onChange={(event) => setHttpRequest({ ...httpRequest, body: event.target.value })} placeholder='{"name":"DevUtils"}' spellCheck={false} />
-              </label>
-              <div className="options-row">
-                <label className="field">
-                  <span>Basic auth</span>
-                  <input value={httpRequest.auth} onChange={(event) => setHttpRequest({ ...httpRequest, auth: event.target.value })} placeholder="user:password" />
-                </label>
-                <label className="field">
-                  <span>Timeout seconds</span>
-                  <input value={httpRequest.timeout} onChange={(event) => setHttpRequest({ ...httpRequest, timeout: event.target.value })} placeholder="30" />
-                </label>
-                <label className="field">
-                  <span>Output file</span>
-                  <input value={httpRequest.output} onChange={(event) => setHttpRequest({ ...httpRequest, output: event.target.value })} placeholder="response.json" />
-                </label>
-              </div>
-              <div className="checkbox-group">
-                <label className="checkbox-field"><input type="checkbox" checked={httpRequest.follow} onChange={(event) => setHttpRequest({ ...httpRequest, follow: event.target.checked })} /> <span>Follow redirects</span></label>
-                <label className="checkbox-field"><input type="checkbox" checked={httpRequest.insecure} onChange={(event) => setHttpRequest({ ...httpRequest, insecure: event.target.checked })} /> <span>Skip TLS verification</span></label>
-                <label className="checkbox-field"><input type="checkbox" checked={httpRequest.compressed} onChange={(event) => setHttpRequest({ ...httpRequest, compressed: event.target.checked })} /> <span>Request compressed response</span></label>
-              </div>
-            </div>
-          </div>
-          <div className="preview-stack">
-            <Output label={`Generated ${selectedDef.label}`} result={{ ok: true, value: primaryOutput }} />
-            <Output label="curl" result={{ ok: true, value: httpCommands.curl }} />
-            <Output label="wget" result={{ ok: true, value: httpCommands.wget }} />
-            <Output label="Python requests" result={{ ok: true, value: httpCommands.requests }} />
-          </div>
-        </div>
-      ) : (
-        <div className="tool-grid two">
-          <div className="options-block">
-            <div className="field-header">
-              <span>Options</span>
-            </div>
-            <div className="options-container cli-options-container">
-              {selectedDef.options.filter((option) => isOptionActive(option, selectedOptions, osMode)).map((option) => (
-                <CliOptionControl
-                  key={option.key}
-                  option={option}
-                  value={selectedOptions[option.key]}
-                  onChange={(value) => updateOption(option.key, value)}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="preview-stack">
-            <Output label="Generated command" result={{ ok: true, value: primaryOutput }} />
-            <div className="cli-reference">
-              <div className="field-header"><span>Option notes</span></div>
-              {selectedDef.options.filter((option) => isOptionActive(option, selectedOptions, osMode)).map((option) => (
-                <div key={option.key}>
-                  <strong>{option.label}</strong>
-                  <span>{option.help}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -3137,6 +3053,125 @@ function IpLookupTool() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CliCheatsheetTool() {
+  const [platform, setPlatform] = useState<string>("linux");
+  const [command, setCommand] = useState<string>("tar");
+  const [inputValue, setInputValue] = useState<string>("tar");
+  const [contentHtml, setContentHtml] = useState<string>("");
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [availableCommands, setAvailableCommands] = useState<Record<string, string[]>>({ linux: [], macos: [] });
+
+  useEffect(() => {
+    fetch("./cheatsheets/index.json")
+      .then(res => res.json())
+      .then(data => setAvailableCommands(data))
+      .catch(err => console.error("Failed to load cheatsheet index", err));
+  }, []);
+
+  const commandOptions = useMemo(() => {
+    return (availableCommands[platform] || []).map(cmd => ({ value: cmd }));
+  }, [availableCommands, platform]);
+
+  useEffect(() => {
+    let canceled = false;
+    const fetchIt = async () => {
+      if (!command.trim()) {
+        setContentHtml("");
+        setErrorMsg("");
+        return;
+      }
+      setLoading(true);
+      setErrorMsg("");
+      const res = await fetchLocalCheatsheet(platform, command);
+      if (canceled) return;
+      if (res.ok) {
+        setContentHtml(formatCheatsheetMarkdown(res.value.content));
+      } else {
+        setErrorMsg(res.error);
+        setContentHtml("");
+      }
+      setLoading(false);
+    };
+    const timer = setTimeout(() => {
+      fetchIt();
+    }, 300);
+    return () => {
+      canceled = true;
+      clearTimeout(timer);
+    };
+  }, [platform, command]);
+
+  useEffect(() => {
+    setInputValue(command);
+  }, [command]);
+
+  return (
+    <div className="stacked-tool cli-cheatsheet">
+      <div className="controls-panel horizontal">
+        <label className="field segmented-field">
+          <span>Platform</span>
+          <Segmented
+            className="ant-control compact-segmented"
+            block
+            size="large"
+            value={platform}
+            onChange={(value) => setPlatform(String(value))}
+            options={[
+              { label: "Linux", value: "linux" },
+              { label: "MacOS", value: "macos" }
+            ]}
+          />
+        </label>
+        <label className="field wide-field">
+          <span>Command</span>
+          <AutoComplete
+            size="large"
+            value={inputValue}
+            onChange={(val) => setInputValue(val)}
+            onSelect={(val) => {
+              setCommand(val.trim().toLowerCase());
+              setInputValue(val.trim().toLowerCase());
+            }}
+            onBlur={() => setInputValue(command)}
+            options={commandOptions}
+            filterOption={(inputValue, option) =>
+              String(option?.value).toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
+            }
+            style={{ width: "100%" }}
+          >
+            <Input 
+              className="ant-control"
+              placeholder="e.g. tar, ls, grep"  
+              suffix={<ChevronDown size={16} color="var(--muted)" />}
+              onFocus={(e) => e.target.select()}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setInputValue(command);
+                  e.currentTarget.blur();
+                } else if (e.key === "Enter") {
+                  setCommand(inputValue.trim().toLowerCase());
+                }
+              }}
+            />
+          </AutoComplete>
+        </label>
+      </div>
+      <div className="cheatsheet-content output-block" style={{ padding: "16px" }}>
+        {loading ? (
+          <div className="notice">Loading...</div>
+        ) : errorMsg ? (
+          <div className="error">{errorMsg}</div>
+        ) : contentHtml ? (
+          <div className="markdown-body" dangerouslySetInnerHTML={{ __html: contentHtml }} />
+        ) : (
+          <div className="notice">Type a command to view its cheatsheet.</div>
+        )}
+      </div>
     </div>
   );
 }

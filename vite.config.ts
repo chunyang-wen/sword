@@ -1,6 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tls from "node:tls";
+import fs from "node:fs";
+import path from "node:path";
 
 function certificatePem(raw: Buffer) {
   const body = raw.toString("base64").match(/.{1,64}/g)?.join("\n") ?? "";
@@ -90,6 +92,35 @@ export default defineConfig({
       configurePreviewServer(server) {
         server.middlewares.use("/api/certificate", certificateApiMiddleware);
       },
+    },
+    {
+      name: "cheatsheet-indexer",
+      buildStart() {
+        const cheatsheetsDir = path.resolve(process.cwd(), "public/cheatsheets");
+        if (!fs.existsSync(cheatsheetsDir)) return;
+        
+        const readFiles = (dir: string) => {
+          const fullPath = path.join(cheatsheetsDir, dir);
+          if (!fs.existsSync(fullPath)) return [];
+          return fs.readdirSync(fullPath)
+            .filter(f => f.endsWith(".md"))
+            .map(f => f.replace(".md", ""));
+        };
+
+        const commonFiles = readFiles("common");
+        const linuxFiles = readFiles("linux");
+        const macosFiles = readFiles("macos");
+
+        const indexData = {
+          linux: Array.from(new Set([...commonFiles, ...linuxFiles])).sort(),
+          macos: Array.from(new Set([...commonFiles, ...macosFiles])).sort()
+        };
+
+        fs.writeFileSync(
+          path.join(cheatsheetsDir, "index.json"),
+          JSON.stringify(indexData)
+        );
+      }
     },
   ],
   build: {

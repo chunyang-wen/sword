@@ -897,7 +897,7 @@ input[type="checkbox"]:focus-visible { outline: 0; box-shadow: var(--focus); }
 }
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item-selected { background: var(--primary); }
 :is(.controls-panel, .options-panel, .options-container) .ant-control.ant-segmented .ant-segmented-item-selected .ant-segmented-item-label { color: var(--primary-on); font-weight: 800; }
-:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select input.ant-select-input {
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select:not(.ant-select-show-search) input.ant-select-input {
   width: 1px !important;
   min-height: 0;
   padding: 0 !important;
@@ -1510,4 +1510,84 @@ input[type="checkbox"]:focus-visible { outline: 0; box-shadow: var(--focus); }
     display: inline-flex;
     justify-content: flex-end;
   }
+}
+
+.cli-cheatsheet .markdown-body {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.cli-cheatsheet .markdown-body h1 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.cli-cheatsheet .markdown-body h2 {
+  font-size: 1.25rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--primary);
+}
+
+.cli-cheatsheet .tldr-blockquote {
+  background: var(--surface-hover);
+  border-left: 4px solid var(--primary);
+  padding: 8px 12px;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+}
+
+.cli-cheatsheet .tldr-blockquote p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.cli-cheatsheet .markdown-body ul {
+  padding-left: 20px;
+  margin-bottom: 1rem;
+}
+
+.cli-cheatsheet .markdown-body li {
+  margin-bottom: 0.5rem;
+}
+
+.cli-cheatsheet .markdown-body code {
+  background: var(--surface-code);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--text);
+  border: 1px solid var(--border);
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.cli-cheatsheet .tldr-arg {
+  color: #d19a66;
+  font-style: italic;
+  padding: 0 2px;
+}
+
+[data-theme="light"] .cli-cheatsheet .tldr-arg {
+  color: #986801;
+}
+
+/* Hide the selected item when typing to prevent overlapping text */
+.ant-select-show-search.ant-select-focused .ant-select-selection-item {
+  opacity: 0 !important;
+}
+
+/* Strip native inner border from Selects/AutoCompletes because ant-control applies its own */
+:is(.controls-panel, .options-panel, .options-container) .ant-control.ant-select .ant-select-selector {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:is(.controls-panel, .options-panel, .options-container) .ant-select-auto-complete .ant-input,
+:is(.controls-panel, .options-panel, .options-container) .ant-select-auto-complete .ant-input:hover,
+:is(.controls-panel, .options-panel, .options-container) .ant-select-auto-complete .ant-input:focus {
+  border: 0 !important;
+  box-shadow: none !important;
 }

@@ -1154,3 +1154,106 @@ function hex(buffer: ArrayBuffer): string {
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+export async function fetchLocalCheatsheet(platform: string, command: string): Promise<Result<{content: string}>> {
+  if (!command.trim()) return emptyOk({ content: "" });
+  try {
+    let response = await fetch(`./cheatsheets/${platform}/${encodeURIComponent(command.trim())}.md`);
+    let content = await response.text();
+    let isHtml = content.trim().toLowerCase().startsWith("<!doctype html>") || content.trim().toLowerCase().startsWith("<html");
+
+    if (!response.ok || isHtml) {
+      response = await fetch(`./cheatsheets/common/${encodeURIComponent(command.trim())}.md`);
+      content = await response.text();
+      isHtml = content.trim().toLowerCase().startsWith("<!doctype html>") || content.trim().toLowerCase().startsWith("<html");
+    }
+
+    if (!response.ok || isHtml) {
+      if (!response.ok && response.status !== 404) {
+        return { ok: false, error: `Failed to fetch cheatsheet: HTTP ${response.status}.` };
+      }
+      return { ok: false, error: `No local cheatsheet available for '${command}' on ${platform}.` };
+    }
+
+    return { ok: true, value: { content } };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Failed to fetch cheatsheet." };
+  }
+}
+
+export function formatCheatsheetMarkdown(input: string): string {
+  const lines = input.replace(/\r\n?/g, "\n").split("\n");
+  const html: string[] = [];
+  let listOpen = false;
+  let blockquoteOpen = false;
+  let paragraph: string[] = [];
+
+  const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (char) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"} as Record<string, string>)[char] || char);
+
+  const inline = (text: string) => escapeHtml(text)
+    .replace(/&lt;(https?:\/\/[^&]+)&gt;/g, '<a href="$1" target="_blank" rel="noreferrer">$1</a>')
+    .replace(/\{\{([^}]+)\}\}/g, "<span class=\"tldr-arg\">$1</span>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      html.push(`<p>${inline(paragraph.join(" "))}</p>`);
+      paragraph = [];
+    }
+  };
+
+  const closeList = () => {
+    if (listOpen) {
+      html.push("</ul>");
+      listOpen = false;
+    }
+  };
+
+  const closeBlockquote = () => {
+    if (blockquoteOpen) {
+      html.push("</div>");
+      blockquoteOpen = false;
+    }
+  };
+
+  for (const line of lines) {
+    const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+    const listItem = /^[-*]\s+(.+)$/.exec(line);
+    const blockquote = /^>\s*(.+)$/.exec(line);
+
+    if (!line.trim()) {
+      flushParagraph();
+      closeList();
+      closeBlockquote();
+    } else if (heading) {
+      flushParagraph();
+      closeList();
+      closeBlockquote();
+      html.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`);
+    } else if (listItem) {
+      flushParagraph();
+      closeBlockquote();
+      if (!listOpen) {
+        html.push("<ul>");
+        listOpen = true;
+      }
+      html.push(`<li>${inline(listItem[1])}</li>`);
+    } else if (blockquote) {
+      flushParagraph();
+      closeList();
+      if (!blockquoteOpen) {
+        html.push("<div class=\"tldr-blockquote\">");
+        blockquoteOpen = true;
+      }
+      html.push(`<p>${inline(blockquote[1])}</p>`);
+    } else {
+      paragraph.push(line.trim());
+    }
+  }
+
+  flushParagraph();
+  closeList();
+  closeBlockquote();
+  return html.join("\n");
+}
