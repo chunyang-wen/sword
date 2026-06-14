@@ -26,6 +26,7 @@ import {
   RefreshCw,
   MapPin,
   Trash2,
+  Twitter,
 } from "lucide-react";
 import QRCode from "qrcode";
 import jsQR from "jsqr";
@@ -254,6 +255,7 @@ function App() {
         <div className="sidebar-footer">
           <ThemeToggle theme={theme} setTheme={setTheme} />
           <a href="https://github.com/chunyang-wen/sword" target="_blank" rel="noreferrer"><Github size={16} /> Source</a>
+          <a href="https://x.com/ChunyangWen" target="_blank" rel="noreferrer"><Twitter size={16} /> Twitter</a>
         </div>
       </aside>
       <main className="workspace">
@@ -287,6 +289,7 @@ function HomePage() {
           <span>{totalTools} tools</span>
           <span>{categoryList.length} categories</span>
           <span>Browser resident</span>
+          <a href="https://x.com/ChunyangWen" target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'inherit', textDecoration: 'none' }}><Twitter size={14} /> @ChunyangWen</a>
         </div>
       </div>
       <div className="category-strip" aria-label="Tool categories">
