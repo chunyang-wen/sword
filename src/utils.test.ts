@@ -41,6 +41,21 @@ describe("formatJson", () => {
     expect(formatJson('{"b":2,"a":1}')).toEqual({ ok: true, value: '{\n  "b": 2,\n  "a": 1\n}' });
   });
 
+  it("accepts single-quoted keys and values", () => {
+    expect(formatJson("{'name':'DevUtils','enabled':true}")).toEqual({
+      ok: true,
+      value: '{\n  "name": "DevUtils",\n  "enabled": true\n}',
+    });
+  });
+
+  it("preserves apostrophes and double quotes inside single-quoted values", () => {
+    const result = formatJson(String.raw`{'message':'It\'s "robust"'}`);
+    expect(result).toEqual({
+      ok: true,
+      value: '{\n  "message": "It\'s \\"robust\\""\n}',
+    });
+  });
+
   it("returns an error for invalid JSON", () => {
     expect(formatJson("{").ok).toBe(false);
   });

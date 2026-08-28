@@ -1,4 +1,5 @@
 import yaml from "js-yaml";
+import JSON5 from "json5";
 import forge from "node-forge";
 import { format as formatSql } from "sql-formatter";
 import cronstrue from "cronstrue";
@@ -11,7 +12,7 @@ export function formatJson(input: string): Result<string> {
   const trimmed = input.trim();
   if (!trimmed) return emptyOk("");
   try {
-    return { ok: true, value: JSON.stringify(JSON.parse(trimmed), null, 2) };
+    return { ok: true, value: JSON.stringify(JSON5.parse(trimmed), null, 2) };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Invalid JSON." };
   }
